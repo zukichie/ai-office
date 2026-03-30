@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>山田建築設計事務所</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0f172a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Courier New', 'MS Gothic', monospace;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  #title {
+    font-size: 22px;
+    color: #fbbf24;
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px rgba(251,191,36,0.4);
+    margin-top: 4px;
+  }
+
+  #stats {
+    display: flex;
+    gap: 24px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(251,191,36,0.25);
+    border-radius: 8px;
+    padding: 8px 24px;
+  }
+
+  .stat { text-align: center; }
+  .stat-label { font-size: 10px; color: #94a3b8; display: block; margin-bottom: 2px; }
+  .stat-value { font-size: 18px; color: #fbbf24; font-weight: bold; }
+
+  #canvas-wrap {
+    position: relative;
+    border: 2px solid #334155;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  #log-wrap {
+    width: 900px;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 8px 14px;
+    max-height: 110px;
+    overflow-y: auto;
+  }
+
+  #log-wrap::-webkit-scrollbar { width: 6px; }
+  #log-wrap::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+  .log-line { font-size: 12px; line-height: 1.9; color: #64748b; }
+  .log-line.fresh { color: #86efac; }
+
+  #hint {
+    font-size: 11px;
+    color: #475569;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<div id="title">🏢 山田建築設計事務所</div>
+
+<div id="stats">
+  <div class="stat"><span class="stat-label">売上累計</span><span class="stat-value" id="s-revenue">¥0</span></div>
+  <div class="stat"><span class="stat-label">完了案件</span><span class="stat-value" id="s-projects">0件</span></div>
+  <div class="stat"><span class="stat-label">社員数</span><span class="stat-value" id="s-staff">1名</span></div>
+  <div class="stat"><span class="stat-label">稼働中</span><span class="stat-value" id="s-active">0名</span></div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="c" width="900" height="490"></canvas>
+</div>
+
+<div id="log-wrap"><div id="log"></div></div>
+<div id="hint">AIエージェントが自律的に働いています — 売上が増えると社員が増えます</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ===== 部屋の定義（サーバーと同期）=====
+const ROOMS = {
+  president:  { name: '所長室',      x: 15,  y: 15,  w: 195, h: 195, bg: '#fefce8', border: '#a16207', label: '#a16207' },
+  design:     { name: '設計室',      x: 225, y: 15,  w: 355, h: 220, bg: '#eff6ff', border: '#1d4ed8', label: '#1d4ed8' },
+  meeting:    { name: '会議室',      x: 595, y: 15,  w: 290, h: 195, bg: '#f0fdf4', border: '#15803d', label: '#15803d' },
+  site:       { name: '現場監理室',  x: 15,  y: 225, w: 270, h: 90,  bg: '#fff7ed', border: '#c2410c', label: '#c2410c' },
+  bim:        { name: 'BIM・CAD室',  x: 595, y: 225, w: 290, h: 145, bg: '#faf5ff', border: '#7c3aed', label: '#7c3aed' },
+  reception:  { name: '受付・エントランス', x: 15, y: 330, w: 560, h: 145, bg: '#fff1f2', border: '#be123c', label: '#be123c' },
+  accounting: { name: '経理・総務室',x: 590, y: 385, w: 295, h: 90,  bg: '#f0fdf4', border: '#166534', label: '#166534' },
+};
+
+// ===== スムーズ移動用の補間位置 =====
+const smooth = {};
+
+let state = null;
+let prevLogLen = 0;
+
+// ===== サーバーからデータ取得 =====
+async function fetchState() {
+  try {
+    const r = await fetch('/api/state');
+    state = await r.json();
+    updateStats();
+    updateLog();
+  } catch(e) {}
+}
+
+function updateStats() {
+  if (!state) return;
+  const c = state.company;
+  document.getElementById('s-revenue').textContent = '¥' + c.revenue.toLocaleString();
+  document.getElementById('s-projects').textContent = c.completedProjects + '件';
+  document.getElementById('s-staff').textContent = state.employees.length + '名';
+  document.getElementById('s-active').textContent = state.employees.filter(e => e.state === 'working').length + '名';
+}
+
+function updateLog() {
+  if (!state) return;
+  const logs = state.company.log;
+  const logEl = document.getElementById('log');
+  logEl.innerHTML = [...logs].reverse().map((l, i) =>
+    `<div class="log-line${i === 0 ? ' fresh' : ''}">${l}</div>`
+  ).join('');
+  if (logs.length !== prevLogLen) {
+    document.getElementById('log-wrap').scrollTop = 0;
+    prevLogLen = logs.length;
+  }
+}
+
+// ===== 描画関数 =====
+
+function drawFloor() {
+  // 床
+  ctx.fillStyle = '#e2e8d0';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // グリッド
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < canvas.width; x += 20) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y < canvas.height; y += 20) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+}
+
+function drawRoom(r) {
+  // 塗り
+  ctx.fillStyle = r.bg;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+
+  // 枠
+  ctx.strokeStyle = r.border;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(r.x, r.y, r.w, r.h);
+
+  // ラベル
+  ctx.fillStyle = r.label;
+  ctx.font = 'bold 11px monospace';
+  ctx.fillText(r.name, r.x + 7, r.y + 14);
+
+  // 机（簡易家具）
+  drawDesk(r);
+}
+
+function drawDesk(r) {
+  const count = Math.max(1, Math.floor(r.w / 90));
+  for (let i = 0; i < Math.min(count, 4); i++) {
+    const dx = r.x + 10 + i * Math.floor((r.w - 20) / count);
+    const dy = r.y + r.h - 42;
+    // 机
+    ctx.fillStyle = '#c8a97e';
+    ctx.fillRect(dx, dy, 55, 22);
+    ctx.strokeStyle = '#a0856a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(dx, dy, 55, 22);
+    // モニター
+    ctx.fillStyle = '#4a5568';
+    ctx.fillRect(dx + 16, dy - 16, 22, 14);
+    ctx.fillStyle = '#2d3748';
+    ctx.fillRect(dx + 22, dy - 2, 10, 3);
+  }
+}
+
+function drawAgent(emp) {
+  // スムーズ補間
+  if (!smooth[emp.id]) smooth[emp.id] = { x: emp.x, y: emp.y };
+  const s = smooth[emp.id];
+  s.x += (emp.targetX - s.x) * 0.04;
+  s.y += (emp.targetY - s.y) * 0.04;
+  const x = Math.round(s.x);
+  const y = Math.round(s.y);
+
+  // 影
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 16, 10, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 胴体
+  ctx.fillStyle = emp.color;
+  ctx.fillRect(x - 7, y - 4, 14, 17);
+
+  // 頭
+  ctx.fillStyle = emp.skinColor || '#fbbf24';
+  ctx.fillRect(x - 5, y - 17, 10, 11);
+
+  // 目
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(x - 3, y - 13, 2, 2);
+  ctx.fillRect(x + 1, y - 13, 2, 2);
+
+  // 口（笑顔）
+  ctx.fillStyle = '#7c3a1e';
+  ctx.fillRect(x - 2, y - 9, 4, 1);
+
+  // 状態インジケーター
+  const blink = (Date.now() / 400 | 0) % 2 === 0;
+  if (emp.state === 'thinking' && blink) {
+    ctx.fillStyle = '#f97316';
+    ctx.beginPath();
+    ctx.arc(x + 9, y - 20, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (emp.state === 'working') {
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.arc(x + 9, y - 20, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 役職バッジ
+  ctx.font = '8px monospace';
+  const tw = ctx.measureText(emp.role).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(x - tw / 2 - 3, y + 14, tw + 6, 11);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText(emp.role, x - tw / 2, y + 23);
+
+  // 吹き出し（working中のみ）
+  if (emp.state === 'working' && emp.thought) {
+    drawBubble(x, y - 20, emp.thought);
+  }
+}
+
+function drawBubble(cx, cy, text) {
+  const maxLen = 18;
+  const display = text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
+  ctx.font = '10px monospace';
+  const tw = ctx.measureText(display).width;
+  const bw = tw + 14;
+  const bh = 18;
+
+  let bx = cx - bw / 2;
+  bx = Math.max(4, Math.min(canvas.width - bw - 4, bx));
+  const by = cy - bh - 10;
+
+  // 白背景
+  ctx.fillStyle = 'rgba(255,255,255,0.93)';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(bx, by, bw, bh, 4);
+  } else {
+    ctx.rect(bx, by, bw, bh);
+  }
+  ctx.fill();
+
+  // 枠
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 尻尾
+  ctx.fillStyle = 'rgba(255,255,255,0.93)';
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, by + bh);
+  ctx.lineTo(cx + 4, by + bh);
+  ctx.lineTo(cx, cy);
+  ctx.fill();
+
+  // テキスト
+  ctx.fillStyle = '#1e293b';
+  ctx.fillText(display, bx + 7, by + 12);
+}
+
+// ===== メインループ =====
+function loop() {
+  requestAnimationFrame(loop);
+  if (!state) return;
+
+  drawFloor();
+  for (const room of Object.values(ROOMS)) drawRoom(room);
+  for (const emp of state.employees) drawAgent(emp);
+}
+
+// ===== 起動 =====
+fetchState();
+setInterval(fetchState, 1500);
+loop();
+</script>
+</body>
+</html>
