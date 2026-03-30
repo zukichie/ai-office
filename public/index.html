@@ -99,16 +99,15 @@ canvas { display:block; image-rendering:pixelated; }
 
 /* BMCボタン */
 #bmc-btn {
-  position:fixed; bottom:24px; left:24px; z-index:150;
-  display:flex; align-items:center; gap:8px;
+  display:inline-flex; align-items:center; gap:8px;
   background:#FFDD00; color:#000; font-weight:bold;
-  font-family:'Cookie',cursive,'Courier New',monospace;
-  font-size:18px; padding:10px 20px; border-radius:8px;
+  font-family:'Courier New',monospace;
+  font-size:15px; padding:8px 18px; border-radius:8px;
   text-decoration:none; border:2px solid #000;
-  box-shadow:4px 4px 0 #000;
-  transition:transform .1s, box-shadow .1s;
+  box-shadow:3px 3px 0 #000;
+  transition:transform .1s, box-shadow .1s; white-space:nowrap;
 }
-#bmc-btn:hover { transform:translate(2px,2px); box-shadow:2px 2px 0 #000; }
+#bmc-btn:hover { transform:translate(2px,2px); box-shadow:1px 1px 0 #000; }
 
 /* コーヒーお祝いパネル（右側に表示） */
 #coffee-overlay {
@@ -161,6 +160,7 @@ canvas { display:block; image-rendering:pixelated; }
 <div id="title">🏢 鈴木建築設計事務所</div>
 
 <div style="display:flex;align-items:center;gap:16px">
+  <a id="bmc-btn" href="https://buymeacoffee.com/zukichieb" target="_blank">☕ コーヒーをおごる</a>
   <div id="stats">
     <div class="stat"><span class="stat-label">売上累計</span><span class="stat-value" id="s-rev">¥0</span></div>
     <div class="stat"><span class="stat-label">完了案件</span><span class="stat-value" id="s-proj">0件</span></div>
@@ -190,9 +190,6 @@ canvas { display:block; image-rendering:pixelated; }
 
 <div id="hint">AIエージェントが自律的に働いています — 売上が増えると社員が増えます</div>
 
-<a id="bmc-btn" href="https://buymeacoffee.com/zukichieb" target="_blank">
-  ☕ コーヒーをおごる
-</a>
 
 <!-- コーヒーお祝いオーバーレイ -->
 <div id="coffee-overlay">
