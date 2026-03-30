@@ -97,6 +97,19 @@ canvas { display:block; image-rendering:pixelated; }
 
 #hint { font-size:10px; color:#334155; letter-spacing:1px; padding-bottom:6px; }
 
+/* BMCボタン */
+#bmc-btn {
+  position:fixed; bottom:24px; left:24px; z-index:150;
+  display:flex; align-items:center; gap:8px;
+  background:#FFDD00; color:#000; font-weight:bold;
+  font-family:'Cookie',cursive,'Courier New',monospace;
+  font-size:18px; padding:10px 20px; border-radius:8px;
+  text-decoration:none; border:2px solid #000;
+  box-shadow:4px 4px 0 #000;
+  transition:transform .1s, box-shadow .1s;
+}
+#bmc-btn:hover { transform:translate(2px,2px); box-shadow:2px 2px 0 #000; }
+
 /* コーヒーお祝いパネル（右側に表示） */
 #coffee-overlay {
   position:fixed; top:0; right:-420px; width:400px; height:100vh;
@@ -175,6 +188,10 @@ canvas { display:block; image-rendering:pixelated; }
 </div>
 
 <div id="hint">AIエージェントが自律的に働いています — 売上が増えると社員が増えます</div>
+
+<a id="bmc-btn" href="https://buymeacoffee.com/zukichieb" target="_blank">
+  ☕ コーヒーをおごる
+</a>
 
 <!-- コーヒーお祝いオーバーレイ -->
 <div id="coffee-overlay">
