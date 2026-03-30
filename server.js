@@ -119,11 +119,18 @@ function addLog(msg) {
   console.log(msg);
 }
 
+// ===== ☕ Webhookログ =====
+let webhookLog = [];
+
+app.get('/api/webhook-log', (req, res) => res.json(webhookLog));
+
 // ===== ☕ Buy Me a Coffee webhook =====
 app.post('/api/coffee', async (req, res) => {
   res.sendStatus(200);
 
   const body = req.body;
+  webhookLog.unshift({ time: new Date().toISOString(), body });
+  if (webhookLog.length > 20) webhookLog.pop();
   console.log('☕ BMC Webhook受信:', JSON.stringify(body, null, 2));
 
   // BMCは複数のフォーマットで送ってくる
