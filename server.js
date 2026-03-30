@@ -75,15 +75,17 @@ function completePhase(project) {
 let meetingMinutes = [];
 
 // ===== 社員 =====
-let employees = [{
-  id: 'president', name: '鈴木 誠', role: '代表取締役所長',
-  room: 'president', state: 'idle',
-  thought: 'さて、事務所を立ち上げたばかりだ。最初の案件を取りに行こう。',
-  color: '#1D4ED8', skinColor: '#FBBF24',
-  x: 100, y: 100, targetX: 100, targetY: 100,
-  busy: false, overtimeHours: 35, monthlyOvertimeLimit: 45,
-  hadPresidentMeeting: false, isHome: false, dancing: false,
-}];
+function makeEmployee(id, name, role, room, color, skinColor, x, y) {
+  return { id, name, role, room, state:'idle', thought:'業務中です。',
+    color, skinColor, x, y, targetX:x, targetY:y,
+    busy:false, overtimeHours:Math.floor(Math.random()*40+20),
+    monthlyOvertimeLimit:Math.floor(Math.random()*60+40),
+    hadPresidentMeeting:false, isHome:false, dancing:false };
+}
+
+let employees = [
+  makeEmployee('president', '鈴木 誠', '代表取締役所長', 'president', '#1D4ED8','#FBBF24', 100, 100),
+];
 
 const MILESTONES = [
   { revenue: 500000,   name:'佐藤 花',    role:'意匠設計士',  room:'design',    color:'#7C3AED', skinColor:'#FCA5A5' },
@@ -144,13 +146,14 @@ app.post('/api/coffee/test', async (req, res) => {
 });
 
 async function triggerCelebration(supporterName, coffees) {
-  // 全員を受付エリアに集める
+  // 全員を受付エリアに集める（帰宅中でも呼び戻す）
   const centerX = 290, centerY = 402;
   employees.forEach((emp, i) => {
     const angle = (i / employees.length) * Math.PI * 2;
     emp.targetX = centerX + Math.cos(angle) * 80;
     emp.targetY = centerY + Math.sin(angle) * 40;
     emp.dancing = true;
+    emp.isHome = false; // 帰宅中でも呼び戻す
     emp.thought = `☕ ${supporterName}さん、ありがとう！`;
     emp.state = 'working';
     emp.busy = true;
