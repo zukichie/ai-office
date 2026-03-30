@@ -133,20 +133,12 @@ app.post('/api/coffee', async (req, res) => {
   if (webhookLog.length > 20) webhookLog.pop();
   console.log('☕ BMC Webhook受信:', JSON.stringify(body, null, 2));
 
-  // BMCのsupport.createdフォーマットに対応
+  // BMCの実際のフォーマット: donation.created
   const supporterName =
     body?.data?.supporter_name ||
-    body?.response?.supporter_name ||
-    body?.supporter_name ||
-    body?.from ||
-    body?.payer_name ||
+    body?.data?.supporter_email?.split('@')[0] ||
     '匿名さん';
-  const coffees =
-    body?.data?.support_coffees ||
-    body?.response?.support_coffees ||
-    body?.support_coffees ||
-    body?.coffee_count ||
-    1;
+  const coffees = body?.data?.coffee_count || 1;
 
   console.log(`☕ コーヒーが届きました！ from ${supporterName} x${coffees}`);
   company.coffeeCount += coffees;
