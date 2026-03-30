@@ -159,9 +159,10 @@ setInterval(() => {
 // 起動2秒後に所長が最初に考える
 setTimeout(() => agentThink(employees[0]), 2000);
 
-app.listen(3000, () => {
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
   console.log('');
   console.log('🏢 山田建築設計事務所が開きました！');
-  console.log('👉 ブラウザで http://localhost:3000 を開いてください');
+  console.log(`👉 ブラウザで http://localhost:${PORT} を開いてください`);
   console.log('');
 });
