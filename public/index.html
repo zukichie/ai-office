@@ -112,7 +112,7 @@ canvas { display:block; image-rendering:pixelated; }
 
 /* コーヒーお祝いパネル（右側に表示） */
 #coffee-overlay {
-  position:fixed; top:0; right:-420px; width:400px; height:100vh;
+  position:fixed; top:0; right:-520px; width:500px; height:100vh;
   background:linear-gradient(180deg,#1e1b4b,#0f172a);
   border-left:2px solid #fbbf24;
   display:flex; flex-direction:column;
@@ -135,7 +135,8 @@ canvas { display:block; image-rendering:pixelated; }
 #coffee-body::-webkit-scrollbar-thumb { background:#334155; border-radius:3px; }
 #song-text {
   font-size:13px; line-height:2; color:#e2e8f0;
-  white-space:pre-wrap; font-family:inherit; word-break:break-all;
+  white-space:pre-wrap; font-family:inherit;
+  word-break:break-word; overflow-wrap:break-word;
 }
 #coffee-progress {
   height:4px; background:#1e293b; flex-shrink:0;
@@ -374,7 +375,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 // ===== 描画 =====
 function drawFloor() {
-  const isNight = state && !state.isWorking && !state.isOvertime;
+  const isNight = state && !state.isWorking && !state.isOvertime && !state.celebration;
   ctx.fillStyle = isNight ? '#c8c8b0' : '#e2e8d0';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 1;
