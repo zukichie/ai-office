@@ -121,12 +121,25 @@ function addLog(msg) {
 
 // ===== ☕ Buy Me a Coffee webhook =====
 app.post('/api/coffee', async (req, res) => {
-  res.sendStatus(200); // BMCにすぐ200を返す
+  res.sendStatus(200);
 
-  // BMCのwebhookフォーマットに対応
   const body = req.body;
-  const supporterName = body?.supporter_name || body?.from || body?.payer_name || '匿名さん';
-  const coffees = body?.support_coffees || body?.coffee_count || 1;
+  console.log('☕ BMC Webhook受信:', JSON.stringify(body, null, 2));
+
+  // BMCは複数のフォーマットで送ってくる
+  const supporterName =
+    body?.response?.supporter_name ||
+    body?.supporter_name ||
+    body?.from ||
+    body?.payer_name ||
+    body?.data?.supporter_name ||
+    '匿名さん';
+  const coffees =
+    body?.response?.support_coffees ||
+    body?.support_coffees ||
+    body?.coffee_count ||
+    body?.data?.support_coffees ||
+    1;
 
   console.log(`☕ コーヒーが届きました！ from ${supporterName} x${coffees}`);
   company.coffeeCount += coffees;
@@ -196,10 +209,10 @@ async function triggerCelebration(supporterName, coffees) {
     coffees,
     song,
     startTime: Date.now(),
-    duration: 40000, // 40秒間
+    duration: 60000, // 60秒間
   };
 
-  // 40秒後に通常業務に戻る
+  // 60秒後に通常業務に戻る
   setTimeout(() => {
     celebration = null;
     employees.forEach(emp => {
@@ -210,8 +223,8 @@ async function triggerCelebration(supporterName, coffees) {
       emp.targetX = pos.x;
       emp.targetY = pos.y;
     });
-    addLog(`🎵 お礼のダンスが終わりました。業務に戻ります！`);
-  }, 40000);
+    addLog(`🎵 ${supporterName}さんへのお礼のダンスが終わりました。ありがとうございました！`);
+  }, 60000);
 }
 
 // ===== エージェント思考 =====

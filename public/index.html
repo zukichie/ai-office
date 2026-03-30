@@ -160,7 +160,7 @@ canvas { display:block; image-rendering:pixelated; }
 <div id="title">🏢 鈴木建築設計事務所</div>
 
 <div style="display:flex;align-items:center;gap:16px">
-  <a id="bmc-btn" href="https://buymeacoffee.com/zukichieb" target="_blank">☕ コーヒーをおごる</a>
+  <a id="bmc-btn" href="https://buymeacoffee.com/zukichieb" target="_blank" onclick="showCoffeeHint()">☕ コーヒーをおごる</a>
   <div id="stats">
     <div class="stat"><span class="stat-label">売上累計</span><span class="stat-value" id="s-rev">¥0</span></div>
     <div class="stat"><span class="stat-label">完了案件</span><span class="stat-value" id="s-proj">0件</span></div>
@@ -590,6 +590,27 @@ function drawDancingAgent(emp) {
   const tw = ctx.measureText(emp.role).width;
   ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(x-tw/2-3, y+14, tw+6, 11);
   ctx.fillStyle = '#fbbf24'; ctx.fillText(emp.role, x-tw/2, y+23);
+}
+
+// 購入後にこのページに戻ったとき、即座に状態を取得
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) fetchState();
+});
+window.addEventListener('focus', () => fetchState());
+
+// BMCボタンクリック時のヒント
+function showCoffeeHint() {
+  const hint = document.createElement('div');
+  hint.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:#1e293b;border:2px solid #fbbf24;border-radius:12px;padding:24px 32px;
+    text-align:center;z-index:300;font-size:15px;color:#fef3c7;line-height:2;
+    box-shadow:0 0 40px rgba(251,191,36,.3);`;
+  hint.innerHTML = `☕ ありがとうございます！<br>
+    <span style="font-size:12px;color:#94a3b8">購入が完了したら<br>
+    <strong style="color:#fbbf24">このタブに戻ってきてください！</strong><br>
+    全スタッフがダンスと歌でお礼をします 🎵</span>`;
+  document.body.appendChild(hint);
+  setTimeout(() => hint.remove(), 5000);
 }
 
 fetchState();
