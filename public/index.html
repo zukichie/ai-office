@@ -99,7 +99,7 @@ canvas { display:block; image-rendering:pixelated; }
 
 /* コーヒーお祝いパネル（右側に表示） */
 #coffee-overlay {
-  position:fixed; top:0; right:-340px; width:320px; height:100vh;
+  position:fixed; top:0; right:-420px; width:400px; height:100vh;
   background:linear-gradient(180deg,#1e1b4b,#0f172a);
   border-left:2px solid #fbbf24;
   display:flex; flex-direction:column;
@@ -121,8 +121,8 @@ canvas { display:block; image-rendering:pixelated; }
 #coffee-body::-webkit-scrollbar { width:4px; }
 #coffee-body::-webkit-scrollbar-thumb { background:#334155; border-radius:3px; }
 #song-text {
-  font-size:12px; line-height:2; color:#e2e8f0;
-  white-space:pre-wrap; font-family:inherit;
+  font-size:13px; line-height:2; color:#e2e8f0;
+  white-space:pre-wrap; font-family:inherit; word-break:break-all;
 }
 #coffee-progress {
   height:4px; background:#1e293b; flex-shrink:0;
@@ -475,20 +475,21 @@ function drawNightOverlay() {
 function loop() {
   requestAnimationFrame(loop);
   if (!state) return;
-  const isNight = !state.isWorking && !state.isOvertime;
+  const isNight = !state.isWorking && !state.isOvertime && !state.celebration;
   drawFloor();
   Object.values(ROOMS).forEach(r => drawRoom(r, isNight));
   // コーヒーお祝い中はスポットライト
   if (state.celebration) {
     // オフィス全体を暗くする
-    ctx.fillStyle = 'rgba(0,0,10,0.72)';
+    ctx.fillStyle = 'rgba(0,0,15,0.82)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // 受付エリアにスポットライト
+    // 受付エリアに強いスポットライト
     const spotX = 295, spotY = 402;
-    const grad = ctx.createRadialGradient(spotX, spotY, 10, spotX, spotY, 220);
-    grad.addColorStop(0,  'rgba(255,240,180,0.55)');
-    grad.addColorStop(0.5,'rgba(255,220,100,0.18)');
-    grad.addColorStop(1,  'rgba(0,0,0,0)');
+    const grad = ctx.createRadialGradient(spotX, spotY, 0, spotX, spotY, 200);
+    grad.addColorStop(0,   'rgba(255,245,200,0.95)');
+    grad.addColorStop(0.3, 'rgba(255,230,150,0.70)');
+    grad.addColorStop(0.6, 'rgba(255,200,80,0.35)');
+    grad.addColorStop(1,   'rgba(0,0,0,0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
