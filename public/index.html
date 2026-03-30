@@ -2,319 +2,423 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>山田建築設計事務所</title>
+<title>鈴木建築設計事務所</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0f172a;
+  display:flex; flex-direction:column; align-items:center;
+  font-family:'Courier New','MS Gothic',monospace;
+  color:#e2e8f0; min-height:100vh; padding:10px; gap:8px;
+}
+#title { font-size:20px; color:#fbbf24; letter-spacing:4px; text-shadow:0 0 20px rgba(251,191,36,.4); margin-top:4px; }
+#stats {
+  display:flex; gap:20px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(251,191,36,.25);
+  border-radius:8px; padding:7px 20px;
+}
+.stat { text-align:center; }
+.stat-label { font-size:10px; color:#94a3b8; display:block; margin-bottom:1px; }
+.stat-value { font-size:16px; color:#fbbf24; font-weight:bold; }
+#time-badge {
+  font-size:11px; padding:3px 10px;
+  border-radius:999px; border:1px solid #334155;
+  background:rgba(0,0,0,.3);
+}
+#time-badge.working  { border-color:#22c55e; color:#86efac; }
+#time-badge.overtime { border-color:#f97316; color:#fdba74; }
+#time-badge.closed   { border-color:#475569; color:#64748b; }
+#canvas-wrap { border:2px solid #334155; border-radius:6px; overflow:hidden; box-shadow:0 0 30px rgba(0,0,0,.5); position:relative; }
+canvas { display:block; image-rendering:pixelated; }
 
-  body {
-    background: #0f172a;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    font-family: 'Courier New', 'MS Gothic', monospace;
-    color: #e2e8f0;
-    min-height: 100vh;
-    padding: 12px;
-    gap: 10px;
-  }
+/* タブ */
+#panel { width:900px; background:rgba(0,0,0,.4); border:1px solid #1e293b; border-radius:8px; overflow:hidden; }
+.tabs { display:flex; border-bottom:1px solid #1e293b; }
+.tab-btn {
+  flex:1; padding:8px; font-size:12px; font-family:inherit;
+  background:transparent; border:none; color:#64748b; cursor:pointer;
+  border-bottom:2px solid transparent; transition:.2s;
+}
+.tab-btn.active { color:#fbbf24; border-bottom-color:#fbbf24; background:rgba(251,191,36,.05); }
+.tab-content { display:none; max-height:160px; overflow-y:auto; padding:10px 14px; }
+.tab-content.active { display:block; }
+.tab-content::-webkit-scrollbar { width:5px; }
+.tab-content::-webkit-scrollbar-thumb { background:#334155; border-radius:3px; }
 
-  #title {
-    font-size: 22px;
-    color: #fbbf24;
-    letter-spacing: 4px;
-    text-shadow: 0 0 20px rgba(251,191,36,0.4);
-    margin-top: 4px;
-  }
+/* ログ */
+.log-line { font-size:11px; line-height:1.9; color:#64748b; }
+.log-line.fresh { color:#86efac; }
 
-  #stats {
-    display: flex;
-    gap: 24px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(251,191,36,0.25);
-    border-radius: 8px;
-    padding: 8px 24px;
-  }
+/* 案件 */
+.project-card {
+  margin-bottom:8px; padding:8px 10px;
+  background:rgba(255,255,255,.04); border:1px solid #1e293b; border-radius:6px;
+}
+.project-card.complete { opacity:.5; }
+.proj-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+.proj-name { font-size:12px; color:#e2e8f0; font-weight:bold; }
+.proj-value { font-size:11px; color:#fbbf24; }
+.proj-phase { font-size:10px; color:#94a3b8; margin-bottom:4px; }
+.proj-staff { font-size:10px; color:#64748b; }
+.progress-wrap { background:#1e293b; border-radius:3px; height:4px; margin:4px 0; }
+.progress-bar { height:4px; border-radius:3px; background:linear-gradient(90deg,#3b82f6,#22c55e); transition:width .5s; }
+.proj-notes { font-size:10px; color:#475569; margin-top:4px; }
 
-  .stat { text-align: center; }
-  .stat-label { font-size: 10px; color: #94a3b8; display: block; margin-bottom: 2px; }
-  .stat-value { font-size: 18px; color: #fbbf24; font-weight: bold; }
+/* 議事録 */
+.minutes-card {
+  margin-bottom:8px; padding:8px 10px;
+  background:rgba(255,255,255,.04); border:1px solid #1e293b; border-radius:6px;
+  cursor:pointer; transition:.15s;
+}
+.minutes-card:hover { border-color:#475569; background:rgba(255,255,255,.07); }
+.min-header { display:flex; justify-content:space-between; margin-bottom:3px; }
+.min-type { font-size:11px; font-weight:bold; }
+.min-type.president { color:#f97316; }
+.min-type.meeting   { color:#60a5fa; }
+.min-date { font-size:10px; color:#64748b; }
+.min-topic { font-size:11px; color:#94a3b8; }
+.min-participants { font-size:10px; color:#475569; margin-top:2px; }
 
-  #canvas-wrap {
-    position: relative;
-    border: 2px solid #334155;
-    border-radius: 6px;
-    overflow: hidden;
-    box-shadow: 0 0 30px rgba(0,0,0,0.5);
-  }
+/* モーダル */
+#modal { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:100; }
+#modal.open { display:flex; }
+#modal-box { background:#0f172a; border:1px solid #334155; border-radius:10px; width:600px; max-height:80vh; overflow:hidden; display:flex; flex-direction:column; }
+#modal-header { padding:12px 16px; border-bottom:1px solid #1e293b; display:flex; justify-content:space-between; align-items:center; }
+#modal-title { font-size:13px; color:#fbbf24; }
+#modal-close { background:transparent; border:none; color:#64748b; font-size:20px; cursor:pointer; }
+#modal-body { padding:16px; overflow-y:auto; flex:1; }
+#modal-body pre { font-family:inherit; font-size:12px; line-height:1.8; color:#cbd5e1; white-space:pre-wrap; }
 
-  canvas {
-    display: block;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-  }
-
-  #log-wrap {
-    width: 900px;
-    background: rgba(0,0,0,0.4);
-    border: 1px solid #1e293b;
-    border-radius: 6px;
-    padding: 8px 14px;
-    max-height: 110px;
-    overflow-y: auto;
-  }
-
-  #log-wrap::-webkit-scrollbar { width: 6px; }
-  #log-wrap::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-
-  .log-line { font-size: 12px; line-height: 1.9; color: #64748b; }
-  .log-line.fresh { color: #86efac; }
-
-  #hint {
-    font-size: 11px;
-    color: #475569;
-    letter-spacing: 1px;
-  }
+#hint { font-size:10px; color:#334155; letter-spacing:1px; padding-bottom:6px; }
 </style>
 </head>
 <body>
 
-<div id="title">🏢 山田建築設計事務所</div>
+<div id="title">🏢 鈴木建築設計事務所</div>
 
-<div id="stats">
-  <div class="stat"><span class="stat-label">売上累計</span><span class="stat-value" id="s-revenue">¥0</span></div>
-  <div class="stat"><span class="stat-label">完了案件</span><span class="stat-value" id="s-projects">0件</span></div>
-  <div class="stat"><span class="stat-label">社員数</span><span class="stat-value" id="s-staff">1名</span></div>
-  <div class="stat"><span class="stat-label">稼働中</span><span class="stat-value" id="s-active">0名</span></div>
+<div style="display:flex;align-items:center;gap:16px">
+  <div id="stats">
+    <div class="stat"><span class="stat-label">売上累計</span><span class="stat-value" id="s-rev">¥0</span></div>
+    <div class="stat"><span class="stat-label">完了案件</span><span class="stat-value" id="s-proj">0件</span></div>
+    <div class="stat"><span class="stat-label">社員数</span><span class="stat-value" id="s-staff">1名</span></div>
+    <div class="stat"><span class="stat-label">稼働中</span><span class="stat-value" id="s-active">0名</span></div>
+    <div class="stat"><span class="stat-label">進行案件</span><span class="stat-value" id="s-active-proj">0件</span></div>
+  </div>
+  <div id="time-badge">JST --:--</div>
 </div>
 
 <div id="canvas-wrap">
   <canvas id="c" width="900" height="490"></canvas>
 </div>
 
-<div id="log-wrap"><div id="log"></div></div>
+<div id="panel">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="log">📋 活動ログ</button>
+    <button class="tab-btn" data-tab="projects">📐 案件一覧</button>
+    <button class="tab-btn" data-tab="minutes">📝 議事録</button>
+    <button class="tab-btn" data-tab="overtime">⏰ 残業状況</button>
+  </div>
+  <div id="tab-log"      class="tab-content active"><div id="log"></div></div>
+  <div id="tab-projects" class="tab-content"><div id="project-list"></div></div>
+  <div id="tab-minutes"  class="tab-content"><div id="minutes-list"></div></div>
+  <div id="tab-overtime" class="tab-content"><div id="overtime-list"></div></div>
+</div>
+
 <div id="hint">AIエージェントが自律的に働いています — 売上が増えると社員が増えます</div>
+
+<!-- 議事録モーダル -->
+<div id="modal">
+  <div id="modal-box">
+    <div id="modal-header">
+      <span id="modal-title"></span>
+      <button id="modal-close">×</button>
+    </div>
+    <div id="modal-body"><pre id="modal-text"></pre></div>
+  </div>
+</div>
 
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-// ===== 部屋の定義（サーバーと同期）=====
 const ROOMS = {
-  president:  { name: '所長室',      x: 15,  y: 15,  w: 195, h: 195, bg: '#fefce8', border: '#a16207', label: '#a16207' },
-  design:     { name: '設計室',      x: 225, y: 15,  w: 355, h: 220, bg: '#eff6ff', border: '#1d4ed8', label: '#1d4ed8' },
-  meeting:    { name: '会議室',      x: 595, y: 15,  w: 290, h: 195, bg: '#f0fdf4', border: '#15803d', label: '#15803d' },
-  site:       { name: '現場監理室',  x: 15,  y: 225, w: 270, h: 90,  bg: '#fff7ed', border: '#c2410c', label: '#c2410c' },
-  bim:        { name: 'BIM・CAD室',  x: 595, y: 225, w: 290, h: 145, bg: '#faf5ff', border: '#7c3aed', label: '#7c3aed' },
-  reception:  { name: '受付・エントランス', x: 15, y: 330, w: 560, h: 145, bg: '#fff1f2', border: '#be123c', label: '#be123c' },
-  accounting: { name: '経理・総務室',x: 590, y: 385, w: 295, h: 90,  bg: '#f0fdf4', border: '#166534', label: '#166534' },
+  president:  { name:'所長室',          x:15,  y:15,  w:195, h:195, bg:'#fefce8', border:'#a16207', label:'#a16207' },
+  design:     { name:'設計室',          x:225, y:15,  w:355, h:220, bg:'#eff6ff', border:'#1d4ed8', label:'#1d4ed8' },
+  meeting:    { name:'会議室',          x:595, y:15,  w:290, h:195, bg:'#f0fdf4', border:'#15803d', label:'#15803d' },
+  site:       { name:'現場監理室',      x:15,  y:225, w:270, h:90,  bg:'#fff7ed', border:'#c2410c', label:'#c2410c' },
+  bim:        { name:'BIM・CAD室',      x:595, y:225, w:290, h:145, bg:'#faf5ff', border:'#7c3aed', label:'#7c3aed' },
+  reception:  { name:'受付・エントランス', x:15, y:330, w:560, h:145, bg:'#fff1f2', border:'#be123c', label:'#be123c' },
+  accounting: { name:'経理・総務室',    x:590, y:385, w:295, h:90,  bg:'#f0fdf4', border:'#166534', label:'#166534' },
 };
 
-// ===== スムーズ移動用の補間位置 =====
 const smooth = {};
-
 let state = null;
 let prevLogLen = 0;
 
-// ===== サーバーからデータ取得 =====
+// ===== データ取得 =====
 async function fetchState() {
   try {
     const r = await fetch('/api/state');
     state = await r.json();
     updateStats();
     updateLog();
+    updateProjects();
+    updateMinutes();
+    updateOvertime();
   } catch(e) {}
 }
 
 function updateStats() {
   if (!state) return;
   const c = state.company;
-  document.getElementById('s-revenue').textContent = '¥' + c.revenue.toLocaleString();
-  document.getElementById('s-projects').textContent = c.completedProjects + '件';
-  document.getElementById('s-staff').textContent = state.employees.length + '名';
-  document.getElementById('s-active').textContent = state.employees.filter(e => e.state === 'working').length + '名';
+  document.getElementById('s-rev').textContent    = '¥' + c.revenue.toLocaleString();
+  document.getElementById('s-proj').textContent   = c.completedProjects + '件';
+  document.getElementById('s-staff').textContent  = state.employees.length + '名';
+  document.getElementById('s-active').textContent = state.employees.filter(e=>e.state==='working').length + '名';
+  document.getElementById('s-active-proj').textContent = state.projects.filter(p=>p.status==='active').length + '件';
+
+  const badge = document.getElementById('time-badge');
+  const h = String(state.jstHour).padStart(2,'0');
+  badge.textContent = `JST ${h}:00頃`;
+  badge.className = state.isWorking ? 'working' : state.isOvertime ? 'overtime' : 'closed';
 }
 
 function updateLog() {
   if (!state) return;
+  const el = document.getElementById('log');
   const logs = state.company.log;
-  const logEl = document.getElementById('log');
-  logEl.innerHTML = [...logs].reverse().map((l, i) =>
-    `<div class="log-line${i === 0 ? ' fresh' : ''}">${l}</div>`
-  ).join('');
+  el.innerHTML = [...logs].reverse().map((l,i)=>`<div class="log-line${i===0?' fresh':''}">${l}</div>`).join('');
   if (logs.length !== prevLogLen) {
-    document.getElementById('log-wrap').scrollTop = 0;
+    document.getElementById('tab-log').scrollTop = 0;
     prevLogLen = logs.length;
   }
 }
 
-// ===== 描画関数 =====
+const PHASES_CLIENT = ['企画・提案','基本設計','実施設計','確認申請','施工監理'];
 
+function updateProjects() {
+  if (!state) return;
+  const el = document.getElementById('project-list');
+  const all = [...state.projects].reverse();
+  if (all.length === 0) { el.innerHTML = '<div class="log-line" style="padding:4px">まだ案件がありません。</div>'; return; }
+
+  el.innerHTML = all.map(p => {
+    const phaseName = p.status === 'complete' ? '竣工完了' : (PHASES_CLIENT[p.phaseIndex] || '');
+    const staff = p.assignees.map(id => {
+      const emp = state.employees.find(e => e.id === id);
+      return emp ? emp.name : '';
+    }).filter(Boolean).join('・') || '（未アサイン）';
+    const progress = p.status === 'complete' ? 100 : p.progress;
+    const notes = p.notes.length > 0 ? `<div class="proj-notes">${p.notes.slice(-2).join(' → ')}</div>` : '';
+    return `
+      <div class="project-card${p.status==='complete'?' complete':''}">
+        <div class="proj-header">
+          <span class="proj-name">${p.name}</span>
+          <span class="proj-value">¥${p.value.toLocaleString()}</span>
+        </div>
+        <div class="proj-phase">${p.status==='complete'?'✅':'🔄'} ${phaseName}　開始: ${p.startDate}</div>
+        <div class="progress-wrap"><div class="progress-bar" style="width:${progress}%"></div></div>
+        <div class="proj-staff">担当: ${staff}　進捗: ${progress}%</div>
+        ${notes}
+      </div>`;
+  }).join('');
+}
+
+function updateMinutes() {
+  if (!state) return;
+  const el = document.getElementById('minutes-list');
+  const mins = state.meetingMinutes;
+  if (mins.length === 0) { el.innerHTML = '<div class="log-line" style="padding:4px">まだ議事録がありません。</div>'; return; }
+
+  el.innerHTML = mins.map(m => {
+    const isPresident = m.type.includes('所長面談');
+    return `
+      <div class="minutes-card" onclick="openMinutes('${m.id}')">
+        <div class="min-header">
+          <span class="min-type ${isPresident?'president':'meeting'}">${isPresident?'⚠️':'📝'} ${m.type}</span>
+          <span class="min-date">${m.date}</span>
+        </div>
+        <div class="min-topic">${m.topic}</div>
+        <div class="min-participants">${m.participants?.join('・')}</div>
+      </div>`;
+  }).join('');
+}
+
+function updateOvertime() {
+  if (!state) return;
+  const el = document.getElementById('overtime-list');
+  el.innerHTML = state.employees.map(emp => {
+    const pct = Math.min(100, (emp.overtimeHours / 100) * 100);
+    const color = pct < 40 ? '#22c55e' : pct < 70 ? '#f59e0b' : '#ef4444';
+    const label = pct < 40 ? '正常' : pct < 70 ? '注意' : '⚠️ 警告';
+    return `
+      <div style="margin-bottom:8px;padding:6px 10px;background:rgba(255,255,255,.04);border:1px solid #1e293b;border-radius:6px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-size:12px;color:#e2e8f0">${emp.name}（${emp.role}）</span>
+          <span style="font-size:11px;color:${color}">${label} ${Math.round(emp.overtimeHours)}h / 上限${emp.monthlyOvertimeLimit}h</span>
+        </div>
+        <div style="background:#1e293b;border-radius:3px;height:5px">
+          <div style="width:${pct}%;height:5px;border-radius:3px;background:${color};transition:width .5s"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ===== 議事録モーダル =====
+const minutesCache = {};
+function openMinutes(id) {
+  if (!state) return;
+  const m = state.meetingMinutes.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('modal-title').textContent = `${m.type} — ${m.topic}`;
+  document.getElementById('modal-text').textContent  = m.content;
+  document.getElementById('modal').classList.add('open');
+}
+document.getElementById('modal-close').addEventListener('click', () => {
+  document.getElementById('modal').classList.remove('open');
+});
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) document.getElementById('modal').classList.remove('open');
+});
+
+// ===== タブ =====
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ===== 描画 =====
 function drawFloor() {
-  // 床
-  ctx.fillStyle = '#e2e8d0';
+  const isNight = state && !state.isWorking && !state.isOvertime;
+  ctx.fillStyle = isNight ? '#c8c8b0' : '#e2e8d0';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // グリッド
-  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < canvas.width; x += 20) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-  }
-  for (let y = 0; y < canvas.height; y += 20) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 1;
+  for (let x=0; x<canvas.width; x+=20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+  for (let y=0; y<canvas.height; y+=20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
 }
 
-function drawRoom(r) {
-  // 塗り
-  ctx.fillStyle = r.bg;
+function drawRoom(r, isNight) {
+  ctx.fillStyle = isNight
+    ? r.bg.replace(/^#/, '').match(/.{2}/g).map((v,i) => i<3 ? Math.max(0,parseInt(v,16)-40) : parseInt(v,16)).reduce((a,v,i)=>a+(i<3?v.toString(16).padStart(2,'0'):''),'#')
+    : r.bg;
+  ctx.fillStyle = isNight ? '#d4d0c0' : r.bg;
   ctx.fillRect(r.x, r.y, r.w, r.h);
-
-  // 枠
-  ctx.strokeStyle = r.border;
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = isNight ? '#888' : r.border; ctx.lineWidth = 2;
   ctx.strokeRect(r.x, r.y, r.w, r.h);
-
-  // ラベル
-  ctx.fillStyle = r.label;
+  ctx.fillStyle = isNight ? '#999' : r.label;
   ctx.font = 'bold 11px monospace';
-  ctx.fillText(r.name, r.x + 7, r.y + 14);
-
-  // 机（簡易家具）
-  drawDesk(r);
+  ctx.fillText(r.name, r.x+7, r.y+14);
+  drawDesk(r, isNight);
 }
 
-function drawDesk(r) {
-  const count = Math.max(1, Math.floor(r.w / 90));
-  for (let i = 0; i < Math.min(count, 4); i++) {
-    const dx = r.x + 10 + i * Math.floor((r.w - 20) / count);
+function drawDesk(r, isNight) {
+  const count = Math.max(1, Math.floor(r.w/90));
+  for (let i=0; i<Math.min(count,4); i++) {
+    const dx = r.x + 10 + i * Math.floor((r.w-20)/count);
     const dy = r.y + r.h - 42;
-    // 机
-    ctx.fillStyle = '#c8a97e';
+    ctx.fillStyle = isNight ? '#a88' : '#c8a97e';
     ctx.fillRect(dx, dy, 55, 22);
-    ctx.strokeStyle = '#a0856a';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = isNight ? '#886' : '#a0856a'; ctx.lineWidth=1;
     ctx.strokeRect(dx, dy, 55, 22);
-    // モニター
-    ctx.fillStyle = '#4a5568';
-    ctx.fillRect(dx + 16, dy - 16, 22, 14);
-    ctx.fillStyle = '#2d3748';
-    ctx.fillRect(dx + 22, dy - 2, 10, 3);
+    ctx.fillStyle = isNight ? '#334' : '#4a5568';
+    ctx.fillRect(dx+16, dy-16, 22, 14);
+    if (!isNight) {
+      ctx.fillStyle = '#60a5fa';
+      ctx.fillRect(dx+18, dy-14, 18, 10); // 画面の光
+    }
   }
 }
 
 function drawAgent(emp) {
-  // スムーズ補間
+  if (emp.isHome) return;
   if (!smooth[emp.id]) smooth[emp.id] = { x: emp.x, y: emp.y };
   const s = smooth[emp.id];
   s.x += (emp.targetX - s.x) * 0.04;
   s.y += (emp.targetY - s.y) * 0.04;
-  const x = Math.round(s.x);
-  const y = Math.round(s.y);
+  const x = Math.round(s.x), y = Math.round(s.y);
 
   // 影
   ctx.fillStyle = 'rgba(0,0,0,0.12)';
-  ctx.beginPath();
-  ctx.ellipse(x, y + 16, 10, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
-
+  ctx.beginPath(); ctx.ellipse(x, y+16, 10, 4, 0, 0, Math.PI*2); ctx.fill();
   // 胴体
   ctx.fillStyle = emp.color;
-  ctx.fillRect(x - 7, y - 4, 14, 17);
-
+  ctx.fillRect(x-7, y-4, 14, 17);
   // 頭
   ctx.fillStyle = emp.skinColor || '#fbbf24';
-  ctx.fillRect(x - 5, y - 17, 10, 11);
-
+  ctx.fillRect(x-5, y-17, 10, 11);
   // 目
   ctx.fillStyle = '#1e293b';
-  ctx.fillRect(x - 3, y - 13, 2, 2);
-  ctx.fillRect(x + 1, y - 13, 2, 2);
-
-  // 口（笑顔）
+  ctx.fillRect(x-3, y-13, 2, 2); ctx.fillRect(x+1, y-13, 2, 2);
+  // 口
   ctx.fillStyle = '#7c3a1e';
-  ctx.fillRect(x - 2, y - 9, 4, 1);
+  ctx.fillRect(x-2, y-9, 4, 1);
 
   // 状態インジケーター
-  const blink = (Date.now() / 400 | 0) % 2 === 0;
-  if (emp.state === 'thinking' && blink) {
-    ctx.fillStyle = '#f97316';
-    ctx.beginPath();
-    ctx.arc(x + 9, y - 20, 3.5, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (emp.state === 'working') {
-    ctx.fillStyle = '#22c55e';
-    ctx.beginPath();
-    ctx.arc(x + 9, y - 20, 3.5, 0, Math.PI * 2);
-    ctx.fill();
+  const blink = (Date.now()/400|0) % 2 === 0;
+  if (emp.state==='thinking' && blink) {
+    ctx.fillStyle='#f97316'; ctx.beginPath(); ctx.arc(x+9,y-20,3.5,0,Math.PI*2); ctx.fill();
+  } else if (emp.state==='working') {
+    ctx.fillStyle='#22c55e'; ctx.beginPath(); ctx.arc(x+9,y-20,3.5,0,Math.PI*2); ctx.fill();
+  }
+
+  // 残業インジケーター（赤ドット）
+  if (emp.overtimeHours > 70) {
+    ctx.fillStyle='#ef4444'; ctx.beginPath(); ctx.arc(x-9,y-20,3,0,Math.PI*2); ctx.fill();
   }
 
   // 役職バッジ
-  ctx.font = '8px monospace';
+  ctx.font='8px monospace';
   const tw = ctx.measureText(emp.role).width;
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(x - tw / 2 - 3, y + 14, tw + 6, 11);
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText(emp.role, x - tw / 2, y + 23);
+  ctx.fillStyle='rgba(0,0,0,.65)'; ctx.fillRect(x-tw/2-3, y+14, tw+6, 11);
+  ctx.fillStyle='#f8fafc'; ctx.fillText(emp.role, x-tw/2, y+23);
 
-  // 吹き出し（working中のみ）
-  if (emp.state === 'working' && emp.thought) {
-    drawBubble(x, y - 20, emp.thought);
-  }
+  // 吹き出し
+  if (emp.state==='working' && emp.thought) drawBubble(x, y-20, emp.thought);
 }
 
 function drawBubble(cx, cy, text) {
-  const maxLen = 18;
-  const display = text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
-  ctx.font = '10px monospace';
-  const tw = ctx.measureText(display).width;
-  const bw = tw + 14;
-  const bh = 18;
-
-  let bx = cx - bw / 2;
-  bx = Math.max(4, Math.min(canvas.width - bw - 4, bx));
-  const by = cy - bh - 10;
-
-  // 白背景
-  ctx.fillStyle = 'rgba(255,255,255,0.93)';
+  const d = text.length > 18 ? text.slice(0,18)+'…' : text;
+  ctx.font='10px monospace';
+  const tw = ctx.measureText(d).width;
+  const bw=tw+14, bh=18;
+  let bx = Math.max(4, Math.min(canvas.width-bw-4, cx-bw/2));
+  const by = cy-bh-10;
+  ctx.fillStyle='rgba(255,255,255,.93)';
   ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(bx, by, bw, bh, 4);
-  } else {
-    ctx.rect(bx, by, bw, bh);
-  }
+  if (ctx.roundRect) ctx.roundRect(bx,by,bw,bh,4); else ctx.rect(bx,by,bw,bh);
   ctx.fill();
-
-  // 枠
-  ctx.strokeStyle = '#cbd5e1';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // 尻尾
-  ctx.fillStyle = 'rgba(255,255,255,0.93)';
-  ctx.beginPath();
-  ctx.moveTo(cx - 4, by + bh);
-  ctx.lineTo(cx + 4, by + bh);
-  ctx.lineTo(cx, cy);
-  ctx.fill();
-
-  // テキスト
-  ctx.fillStyle = '#1e293b';
-  ctx.fillText(display, bx + 7, by + 12);
+  ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=1; ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.93)';
+  ctx.beginPath(); ctx.moveTo(cx-4,by+bh); ctx.lineTo(cx+4,by+bh); ctx.lineTo(cx,cy); ctx.fill();
+  ctx.fillStyle='#1e293b'; ctx.fillText(d, bx+7, by+12);
 }
 
-// ===== メインループ =====
+function drawNightOverlay() {
+  if (!state || state.isWorking || state.isOvertime) return;
+  ctx.fillStyle = 'rgba(0,0,40,0.55)';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.font = '28px serif'; ctx.fillText('🌙', canvas.width/2-60, canvas.height/2-15);
+  ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 15px monospace';
+  ctx.fillText('就業時間外  (9:00 - 18:00)', canvas.width/2-120, canvas.height/2+15);
+  ctx.fillStyle = '#64748b'; ctx.font = '11px monospace';
+  ctx.fillText(`現在 JST ${String(state?.jstHour||0).padStart(2,'0')}:00頃`, canvas.width/2-55, canvas.height/2+38);
+}
+
 function loop() {
   requestAnimationFrame(loop);
   if (!state) return;
-
+  const isNight = !state.isWorking && !state.isOvertime;
   drawFloor();
-  for (const room of Object.values(ROOMS)) drawRoom(room);
-  for (const emp of state.employees) drawAgent(emp);
+  Object.values(ROOMS).forEach(r => drawRoom(r, isNight));
+  state.employees.forEach(e => drawAgent(e));
+  drawNightOverlay();
 }
 
-// ===== 起動 =====
 fetchState();
 setInterval(fetchState, 1500);
 loop();
