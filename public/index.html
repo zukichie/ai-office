@@ -79,8 +79,9 @@ canvas { display:block; image-rendering:pixelated; }
 .minutes-card:hover { border-color:#475569; background:rgba(255,255,255,.07); }
 .min-header { display:flex; justify-content:space-between; margin-bottom:3px; }
 .min-type { font-size:11px; font-weight:bold; }
-.min-type.president { color:#f97316; }
-.min-type.meeting   { color:#60a5fa; }
+.min-type.president  { color:#f97316; }
+.min-type.meeting    { color:#60a5fa; }
+.min-type.strategic  { color:#a78bfa; }
 .min-date { font-size:10px; color:#64748b; }
 .min-topic { font-size:11px; color:#94a3b8; }
 .min-participants { font-size:10px; color:#475569; margin-top:2px; }
@@ -158,6 +159,7 @@ canvas { display:block; image-rendering:pixelated; }
 <body>
 
 <div id="title">🏢 鈴木建築設計事務所</div>
+<div id="stage-name" style="font-size:11px;color:#64748b;letter-spacing:2px;margin-top:-4px"></div>
 
 <div style="display:flex;align-items:center;gap:16px">
   <a id="bmc-btn" href="https://buymeacoffee.com/zukichieb" target="_blank" onclick="showCoffeeHint()">☕ コーヒーをおごる</a>
@@ -173,6 +175,13 @@ canvas { display:block; image-rendering:pixelated; }
 
 <div id="canvas-wrap">
   <canvas id="c" width="900" height="490"></canvas>
+  <!-- 移転オーバーレイ -->
+  <div id="move-overlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.88);
+    align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:50">
+    <div style="font-size:52px">🚚</div>
+    <div style="font-size:22px;color:#fbbf24;letter-spacing:2px">オフィス移転中...</div>
+    <div style="font-size:13px;color:#94a3b8">AIエージェントが新しいオフィスへ引っ越しています</div>
+  </div>
 </div>
 
 <div id="panel">
@@ -188,7 +197,7 @@ canvas { display:block; image-rendering:pixelated; }
   <div id="tab-overtime" class="tab-content"><div id="overtime-list"></div></div>
 </div>
 
-<div id="hint">AIエージェントが自律的に働いています — 売上が増えると社員が増えます</div>
+<div id="hint">AIエージェントが自律的に働いています — 経営会議で採用・移転を自分たちで決定します</div>
 
 
 <!-- コーヒーお祝いオーバーレイ -->
@@ -220,7 +229,21 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-const ROOMS = {
+// ルーム定義（サーバーから動的に受け取る）
+const ROOM_STYLE = {
+  president:  { name:'所長室',              bg:'#fefce8', border:'#a16207', label:'#a16207' },
+  design:     { name:'設計室',              bg:'#eff6ff', border:'#1d4ed8', label:'#1d4ed8' },
+  meeting:    { name:'会議室',              bg:'#f0fdf4', border:'#15803d', label:'#15803d' },
+  site:       { name:'現場監理室',          bg:'#fff7ed', border:'#c2410c', label:'#c2410c' },
+  bim:        { name:'BIM・CAD室',          bg:'#faf5ff', border:'#7c3aed', label:'#7c3aed' },
+  reception:  { name:'受付・エントランス',  bg:'#fff1f2', border:'#be123c', label:'#be123c' },
+  accounting: { name:'経理・総務室',        bg:'#f0fdf4', border:'#166534', label:'#166534' },
+  openoffice: { name:'オープンオフィス',    bg:'#f0f9ff', border:'#0284c7', label:'#0284c7' },
+  marketing:  { name:'事業開発・営業',      bg:'#fdf4ff', border:'#a21caf', label:'#a21caf' },
+  research:   { name:'技術研究開発室',      bg:'#f8fafc', border:'#334155', label:'#334155' },
+};
+
+let ROOMS = {
   president:  { name:'所長室',          x:15,  y:15,  w:195, h:195, bg:'#fefce8', border:'#a16207', label:'#a16207' },
   design:     { name:'設計室',          x:225, y:15,  w:355, h:220, bg:'#eff6ff', border:'#1d4ed8', label:'#1d4ed8' },
   meeting:    { name:'会議室',          x:595, y:15,  w:290, h:195, bg:'#f0fdf4', border:'#15803d', label:'#15803d' },
@@ -229,6 +252,21 @@ const ROOMS = {
   reception:  { name:'受付・エントランス', x:15, y:330, w:560, h:145, bg:'#fff1f2', border:'#be123c', label:'#be123c' },
   accounting: { name:'経理・総務室',    x:590, y:385, w:295, h:90,  bg:'#f0fdf4', border:'#166534', label:'#166534' },
 };
+
+function updateRoomsAndCanvas() {
+  if (!state || !state.rooms || !state.stageInfo) return;
+  const { canvasW, canvasH } = state.stageInfo;
+  if (canvas.width !== canvasW || canvas.height !== canvasH) {
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+  }
+  const newRooms = {};
+  Object.entries(state.rooms).forEach(([key, r]) => {
+    const style = ROOM_STYLE[key] || { name: key, bg:'#f8fafc', border:'#94a3b8', label:'#64748b' };
+    newRooms[key] = { ...style, ...r };
+  });
+  ROOMS = newRooms;
+}
 
 const smooth = {};
 let state = null;
@@ -239,12 +277,27 @@ async function fetchState() {
   try {
     const r = await fetch('/api/state');
     state = await r.json();
+    updateRoomsAndCanvas();
     updateStats();
     updateLog();
     updateProjects();
     updateMinutes();
     updateOvertime();
+    updateOfficeMove();
   } catch(e) {}
+}
+
+let prevOfficeMoving = false;
+function updateOfficeMove() {
+  if (!state) return;
+  const moving = state.company.officeMoving;
+  const overlay = document.getElementById('move-overlay');
+  if (moving && !prevOfficeMoving) {
+    overlay.style.display = 'flex';
+  } else if (!moving && prevOfficeMoving) {
+    overlay.style.display = 'none';
+  }
+  prevOfficeMoving = moving;
 }
 
 function updateStats() {
@@ -260,6 +313,10 @@ function updateStats() {
   const h = String(state.jstHour).padStart(2,'0');
   badge.textContent = `JST ${h}:00頃`;
   badge.className = state.isWorking ? 'working' : state.isOvertime ? 'overtime' : 'closed';
+
+  if (state.stageInfo) {
+    document.getElementById('stage-name').textContent = state.stageInfo.name;
+  }
 }
 
 function updateLog() {
@@ -311,10 +368,13 @@ function updateMinutes() {
 
   el.innerHTML = mins.map(m => {
     const isPresident = m.type.includes('所長面談');
+    const isStrategic = m.type.includes('経営戦略') || m.type.includes('移転') || m.type.includes('採用決定');
+    const icon = isPresident ? '⚠️' : isStrategic ? '🏢' : '📝';
+    const cls  = isPresident ? 'president' : isStrategic ? 'strategic' : 'meeting';
     return `
       <div class="minutes-card" onclick="openMinutes('${m.id}')">
         <div class="min-header">
-          <span class="min-type ${isPresident?'president':'meeting'}">${isPresident?'⚠️':'📝'} ${m.type}</span>
+          <span class="min-type ${cls}">${icon} ${m.type}</span>
           <span class="min-date">${m.date}</span>
         </div>
         <div class="min-topic">${m.topic}</div>
@@ -495,15 +555,16 @@ function loop() {
   Object.values(ROOMS).forEach(r => drawRoom(r, isNight));
   // コーヒーお祝い中はスポットライト
   if (state.celebration) {
-    // オフィス全体を暗くする
     ctx.fillStyle = 'rgba(0,0,15,0.82)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // 受付エリアに強いスポットライト
-    const spotX = 295, spotY = 402;
-    const grad = ctx.createRadialGradient(spotX, spotY, 0, spotX, spotY, 200);
-    grad.addColorStop(0,   'rgba(255,245,200,0.95)');
-    grad.addColorStop(0.3, 'rgba(255,230,150,0.70)');
-    grad.addColorStop(0.6, 'rgba(255,200,80,0.35)');
+    const rec = ROOMS.reception;
+    const spotX = rec ? rec.x + rec.w/2 : 295;
+    const spotY = rec ? rec.y + rec.h/2 : 402;
+    const spotR = rec ? Math.max(rec.w, rec.h) * 0.7 : 200;
+    const grad = ctx.createRadialGradient(spotX, spotY, 0, spotX, spotY, spotR);
+    grad.addColorStop(0,   'rgba(255,245,200,0.92)');
+    grad.addColorStop(0.3, 'rgba(255,230,150,0.65)');
+    grad.addColorStop(0.6, 'rgba(255,200,80,0.30)');
     grad.addColorStop(1,   'rgba(0,0,0,0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);

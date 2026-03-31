@@ -11,7 +11,107 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ===== 状態の保存・読み込み (JSONBin.io または ローカルファイル) =====
+// ===== オフィスステージ定義 =====
+const OFFICE_STAGES = [
+  { id:1, name:'小規模事務所',         canvasW:900,  canvasH:490, capacity:8   },
+  { id:2, name:'成長期設計事務所',     canvasW:1050, canvasH:560, capacity:15  },
+  { id:3, name:'中堅設計事務所',       canvasW:1200, canvasH:640, capacity:23  },
+  { id:4, name:'総合建築設計グループ', canvasW:1350, canvasH:720, capacity:999 },
+];
+
+const ROOM_RANGES_BY_STAGE = {
+  1: {
+    president:  { x:15,  y:15,  w:195, h:195 },
+    design:     { x:225, y:15,  w:355, h:220 },
+    meeting:    { x:595, y:15,  w:290, h:195 },
+    site:       { x:15,  y:225, w:270, h:90  },
+    bim:        { x:595, y:225, w:290, h:145 },
+    reception:  { x:15,  y:330, w:560, h:145 },
+    accounting: { x:590, y:385, w:295, h:90  },
+  },
+  2: {
+    president:  { x:15,  y:15,  w:195, h:215 },
+    design:     { x:225, y:15,  w:415, h:240 },
+    meeting:    { x:655, y:15,  w:380, h:215 },
+    site:       { x:15,  y:245, w:280, h:100 },
+    openoffice: { x:305, y:270, w:335, h:75  },
+    bim:        { x:655, y:245, w:380, h:165 },
+    reception:  { x:15,  y:360, w:625, h:185 },
+    accounting: { x:650, y:420, w:385, h:125 },
+  },
+  3: {
+    president:  { x:15,  y:15,  w:195, h:220 },
+    design:     { x:225, y:15,  w:470, h:250 },
+    meeting:    { x:710, y:15,  w:475, h:220 },
+    site:       { x:15,  y:250, w:290, h:110 },
+    openoffice: { x:320, y:280, w:375, h:80  },
+    bim:        { x:710, y:250, w:475, h:190 },
+    marketing:  { x:15,  y:375, w:290, h:250 },
+    reception:  { x:320, y:375, w:375, h:250 },
+    accounting: { x:710, y:455, w:475, h:170 },
+  },
+  4: {
+    president:  { x:15,  y:15,  w:305, h:225 },
+    design:     { x:335, y:15,  w:400, h:260 },
+    meeting:    { x:750, y:15,  w:585, h:225 },
+    site:       { x:15,  y:255, w:305, h:120 },
+    openoffice: { x:335, y:290, w:400, h:85  },
+    bim:        { x:750, y:255, w:585, h:225 },
+    marketing:  { x:15,  y:390, w:305, h:315 },
+    reception:  { x:335, y:390, w:400, h:315 },
+    research:   { x:750, y:495, w:280, h:210 },
+    accounting: { x:1045,y:495, w:290, h:210 },
+  },
+};
+
+// ===== 職種プール（30種）=====
+const ROLE_POOL = [
+  { role:'意匠設計士',               room:'design',     fallback:'design',     color:'#7C3AED', skinColor:'#FCA5A5' },
+  { role:'構造設計士',               room:'design',     fallback:'design',     color:'#059669', skinColor:'#FBBF24' },
+  { role:'設備設計士',               room:'design',     fallback:'design',     color:'#DC2626', skinColor:'#FCA5A5' },
+  { role:'BIM担当',                  room:'bim',        fallback:'bim',        color:'#9333EA', skinColor:'#FBBF24' },
+  { role:'積算士',                   room:'reception',  fallback:'reception',  color:'#DB2777', skinColor:'#FCA5A5' },
+  { role:'施工監理員',               room:'site',       fallback:'site',       color:'#92400E', skinColor:'#FBBF24' },
+  { role:'営業担当',                 room:'reception',  fallback:'reception',  color:'#0891B2', skinColor:'#FCA5A5' },
+  { role:'総務・経理',               room:'accounting', fallback:'accounting', color:'#65A30D', skinColor:'#FBBF24' },
+  { role:'CADオペレーター',          room:'openoffice', fallback:'design',     color:'#2563EB', skinColor:'#FCA5A5' },
+  { role:'インテリアデザイナー',     room:'design',     fallback:'design',     color:'#D97706', skinColor:'#FCA5A5' },
+  { role:'プロジェクトマネージャー', room:'meeting',    fallback:'meeting',    color:'#1D4ED8', skinColor:'#FBBF24' },
+  { role:'法規・確認申請担当',       room:'openoffice', fallback:'accounting', color:'#7C3AED', skinColor:'#FBBF24' },
+  { role:'品質管理担当',             room:'site',       fallback:'site',       color:'#059669', skinColor:'#FBBF24' },
+  { role:'広報・マーケティング',     room:'marketing',  fallback:'reception',  color:'#EC4899', skinColor:'#FCA5A5' },
+  { role:'IT担当',                   room:'bim',        fallback:'bim',        color:'#0284C7', skinColor:'#FBBF24' },
+  { role:'都市計画士',               room:'openoffice', fallback:'design',     color:'#6D28D9', skinColor:'#FBBF24' },
+  { role:'ランドスケープデザイナー', room:'design',     fallback:'design',     color:'#16A34A', skinColor:'#FCA5A5' },
+  { role:'環境設備コンサルタント',   room:'openoffice', fallback:'bim',        color:'#0891B2', skinColor:'#FBBF24' },
+  { role:'安全管理士',               room:'site',       fallback:'site',       color:'#DC2626', skinColor:'#FBBF24' },
+  { role:'3Dビジュアライザー',       room:'bim',        fallback:'bim',        color:'#7C3AED', skinColor:'#FCA5A5' },
+  { role:'コスト管理士',             room:'accounting', fallback:'accounting', color:'#059669', skinColor:'#FCA5A5' },
+  { role:'リノベーション専門士',     room:'design',     fallback:'design',     color:'#D97706', skinColor:'#FBBF24' },
+  { role:'事業開発担当',             room:'marketing',  fallback:'reception',  color:'#DB2777', skinColor:'#FBBF24' },
+  { role:'海外展開担当',             room:'marketing',  fallback:'reception',  color:'#0284C7', skinColor:'#FCA5A5' },
+  { role:'サステナビリティ担当',     room:'research',   fallback:'bim',        color:'#16A34A', skinColor:'#FBBF24' },
+  { role:'福祉住環境コーディネーター', room:'design',   fallback:'design',     color:'#DB2777', skinColor:'#FCA5A5' },
+  { role:'技術研究員',               room:'research',   fallback:'bim',        color:'#6D28D9', skinColor:'#FBBF24' },
+  { role:'不動産コンサルタント',     room:'marketing',  fallback:'reception',  color:'#B45309', skinColor:'#FCA5A5' },
+  { role:'社長秘書',                 room:'president',  fallback:'reception',  color:'#9333EA', skinColor:'#FCA5A5' },
+  { role:'デジタル変革推進担当',     room:'bim',        fallback:'bim',        color:'#2563EB', skinColor:'#FCA5A5' },
+];
+
+const NAME_POOL = [
+  '田中 美咲','山田 拓也','吉田 健太','山本 あかね','松本 浩二',
+  '井上 明日香','木村 亮','林 由美','斉藤 大輔','清水 恵',
+  '山口 健','池田 さおり','橋本 賢','石川 楓','中川 義之',
+  '前田 彩','岡田 誠','長谷川 美穂','藤田 龍也','近藤 幸子',
+  '西村 翔','福島 玲奈','三浦 和也','坂本 千夏','村上 俊介',
+  '宮本 あゆみ','土田 翼','河合 絵梨','平野 大輝','菊池 沙耶',
+];
+
+function getCurrentRooms() {
+  return ROOM_RANGES_BY_STAGE[company.officeStage] || ROOM_RANGES_BY_STAGE[1];
+}
+
+// ===== 状態の保存・読み込み =====
 const JSONBIN_KEY = process.env.JSONBIN_API_KEY;
 const JSONBIN_BIN  = process.env.JSONBIN_BIN_ID;
 const DATA_FILE = process.env.DATA_PATH ? path.join(process.env.DATA_PATH, 'state.json') : path.join(__dirname, 'data.json');
@@ -28,37 +128,34 @@ function buildSaveData() {
 function applyLoadedData(data) {
   if (!data || !data.savedAt) return;
   Object.assign(company, data.company);
+  if (!company.officeStage) company.officeStage = 1;
+  if (company.officeMoving === undefined) company.officeMoving = false;
   if (data.employees?.length > 0) {
     employees.length = 0;
     data.employees.forEach(e => {
-      const pos = randomPosInRoom(e.room);
-      employees.push({ ...e, x: pos.x, y: pos.y, targetX: pos.x, targetY: pos.y,
+      const rooms = getCurrentRooms();
+      const room = rooms[e.room] ? e.room : 'reception';
+      const pos = randomPosInRoom(room);
+      employees.push({ ...e, room, x: pos.x, y: pos.y, targetX: pos.x, targetY: pos.y,
         busy: false, dancing: false, state: 'idle', isHome: false });
     });
   }
   if (data.projects?.length > 0) projects.push(...data.projects);
-  console.log(`✅ 状態を復元: 売上¥${company.revenue.toLocaleString()} / 社員${employees.length}名 / 案件${projects.length}件`);
+  console.log(`✅ 状態を復元: 売上¥${company.revenue.toLocaleString()} / 社員${employees.length}名 / ステージ${company.officeStage}`);
 }
 
-// JSONBin.io を使った保存
 function saveStateRemote() {
   const body = JSON.stringify(buildSaveData());
   const req = https.request({
     hostname: 'api.jsonbin.io',
     path: `/v3/b/${JSONBIN_BIN}`,
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Master-Key': JSONBIN_KEY,
-      'Content-Length': Buffer.byteLength(body),
-    }
+    headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY, 'Content-Length': Buffer.byteLength(body) }
   }, () => { console.log('☁️ JSONBinに保存しました'); });
   req.on('error', e => console.error('JSONBin保存エラー:', e.message));
-  req.write(body);
-  req.end();
+  req.write(body); req.end();
 }
 
-// JSONBin.io から読み込み
 function loadStateRemote() {
   return new Promise(resolve => {
     https.get({
@@ -76,11 +173,8 @@ function loadStateRemote() {
   });
 }
 
-// ローカルファイルに保存（開発用フォールバック）
 function saveStateLocal() {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(buildSaveData()));
-  } catch(e) { console.error('ローカル保存エラー:', e.message); }
+  try { fs.writeFileSync(DATA_FILE, JSON.stringify(buildSaveData())); } catch(e) { console.error('ローカル保存エラー:', e.message); }
 }
 
 function loadStateLocal() {
@@ -102,7 +196,6 @@ async function loadState() {
   else loadStateLocal();
 }
 
-// 30秒ごとに保存
 setInterval(saveState, 30 * 1000);
 
 // ===== 日本時間 =====
@@ -119,15 +212,17 @@ const company = {
   log: ['🏢 鈴木建築設計事務所が設立されました'],
   currentMonth: getJST().getUTCMonth(),
   coffeeCount: 0,
+  officeStage: 1,
+  officeMoving: false,
 };
 
 // ===== コーヒーお祝い状態 =====
-let celebration = null; // { supporterName, coffees, song, startTime }
+let celebration = null;
 
 // ===== プロジェクト =====
 let projects = [];
-const PROJECT_TYPES = ['木造住宅','RC造マンション','店舗改装','オフィスビル','公共施設','医療施設','工場・倉庫','リノベーション'];
-const CLIENT_NAMES  = ['田中','佐藤','山田','渡辺','伊藤','高橋','木村','林','斉藤','清水'];
+const PROJECT_TYPES = ['木造住宅','RC造マンション','店舗改装','オフィスビル','公共施設','医療施設','工場・倉庫','リノベーション','集合住宅','商業施設'];
+const CLIENT_NAMES  = ['田中','佐藤','山田','渡辺','伊藤','高橋','木村','林','斉藤','清水','石井','中野'];
 const PHASES = [
   { id:'proposal',    name:'企画・提案', icon:'📋' },
   { id:'basic',       name:'基本設計',   icon:'✏️'  },
@@ -139,12 +234,13 @@ const PHASES = [
 function createProject() {
   const type   = PROJECT_TYPES[Math.floor(Math.random() * PROJECT_TYPES.length)];
   const client = CLIENT_NAMES[Math.floor(Math.random() * CLIENT_NAMES.length)];
+  const scale = employees.length > 10 ? 3 : employees.length > 5 ? 2 : 1;
   return {
     id: 'proj_' + Date.now(),
     name: client + '様邸 ' + type,
     client: client + '様',
     type,
-    value: Math.floor(Math.random() * 1800000 + 300000),
+    value: Math.floor(Math.random() * 1800000 * scale + 300000),
     phaseIndex: 0, progress: 0, assignees: [],
     startDate: getJST().toLocaleDateString('ja-JP'),
     notes: [], status: 'active',
@@ -164,7 +260,6 @@ function completePhase(project) {
     company.revenue += project.value;
     company.completedProjects++;
     addLog(`✅ ${project.name} 竣工完了 +¥${project.value.toLocaleString()}`);
-    checkGrowth();
     saveState();
   }
 }
@@ -185,36 +280,188 @@ let employees = [
   makeEmployee('president', '鈴木 誠', '代表取締役所長', 'president', '#1D4ED8','#FBBF24', 100, 100),
 ];
 
-const MILESTONES = [
-  { revenue: 500000,   name:'佐藤 花',    role:'意匠設計士',  room:'design',    color:'#7C3AED', skinColor:'#FCA5A5' },
-  { revenue: 1500000,  name:'鈴木 健',    role:'構造設計士',  room:'design',    color:'#059669', skinColor:'#FBBF24' },
-  { revenue: 3000000,  name:'高橋 ゆい',  role:'設備設計士',  room:'design',    color:'#DC2626', skinColor:'#FCA5A5' },
-  { revenue: 5000000,  name:'中村 博',    role:'BIM担当',     room:'bim',       color:'#9333EA', skinColor:'#FBBF24' },
-  { revenue: 7000000,  name:'渡辺さくら', role:'積算士',      room:'reception', color:'#DB2777', skinColor:'#FCA5A5' },
-  { revenue: 10000000, name:'伊藤 誠一',  role:'施工監理員',  room:'site',      color:'#92400E', skinColor:'#FBBF24' },
-  { revenue: 14000000, name:'小林 美咲',  role:'営業担当',    room:'reception', color:'#0891B2', skinColor:'#FCA5A5' },
-  { revenue: 20000000, name:'加藤 光',    role:'総務・経理',  room:'accounting',color:'#65A30D', skinColor:'#FBBF24' },
-];
-
-const ROOM_RANGES = {
-  president:  { x:15,  y:15,  w:195, h:195 },
-  design:     { x:225, y:15,  w:355, h:220 },
-  meeting:    { x:595, y:15,  w:290, h:195 },
-  site:       { x:15,  y:225, w:270, h:90  },
-  bim:        { x:595, y:225, w:290, h:145 },
-  reception:  { x:15,  y:330, w:560, h:145 },
-  accounting: { x:580, y:390, w:300, h:90  },
-};
-
 function randomPosInRoom(roomName) {
-  const r = ROOM_RANGES[roomName] || ROOM_RANGES.reception;
+  const rooms = getCurrentRooms();
+  const r = rooms[roomName] || rooms.reception;
   return { x: r.x+30+Math.random()*(r.w-60), y: r.y+25+Math.random()*(r.h-45) };
 }
 
 function addLog(msg) {
   company.log.push(msg);
-  if (company.log.length > 40) company.log.shift();
+  if (company.log.length > 50) company.log.shift();
   console.log(msg);
+}
+
+// ===== 自律採用・移転システム =====
+let strategicMeetingInProgress = false;
+
+async function agentStrategicMeeting() {
+  if (strategicMeetingInProgress || celebration || company.officeMoving) return;
+  if (!isWorkingHours() || employees.length < 2) return;
+
+  strategicMeetingInProgress = true;
+
+  const currentStage = OFFICE_STAGES[company.officeStage - 1];
+  const nextStage = OFFICE_STAGES[company.officeStage];
+  const activeProjects = projects.filter(p => p.status === 'active');
+  const availableRoles = ROLE_POOL.filter(r => !employees.find(e => e.role === r.role));
+  const isNearCapacity = employees.length >= currentStage.capacity - 1;
+
+  const president = employees.find(e => e.id === 'president');
+  const others = employees.filter(e => e.id !== 'president').sort(() => Math.random() - 0.5).slice(0, 2);
+  const participants = [president, ...others].filter(Boolean);
+
+  // 会議室に集合
+  participants.forEach(emp => {
+    const pos = randomPosInRoom('meeting');
+    emp.targetX = pos.x; emp.targetY = pos.y;
+    emp.state = 'working'; emp.thought = '経営会議中';
+  });
+
+  const prompt = `あなたは「${company.name}」の経営会議AIです。
+現在の状況を分析し、次のアクションを1つだけ決定してください。
+
+【現況】
+- 社員数: ${employees.length}名（現オフィス適正: ${currentStage.capacity}名まで）
+- 現オフィス: ${currentStage.name}
+- 累計売上: ¥${company.revenue.toLocaleString()}
+- 進行中案件: ${activeProjects.length}件（社員1名あたり${(activeProjects.length/employees.length).toFixed(1)}件）
+- スタッフ: ${employees.map(e=>e.role).join('、')}
+${isNearCapacity && nextStage ? `⚠️ オフィスが手狭です。「${nextStage.name}」への移転を強く検討してください。` : ''}
+${!nextStage ? '現在が最大規模のオフィスです。' : ''}
+
+【採用可能職種（一部）】${availableRoles.slice(0,10).map(r=>r.role).join('、')}
+
+【回答形式】必ずこの形式で1行のみ答えてください：
+採用→ HIRE|職種名|氏名|採用理由(15字以内)
+移転→ MOVE|移転理由(15字以内)
+維持→ STAY|理由(15字以内)`;
+
+  try {
+    const res = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 80,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const decision = res.content[0].text.trim().split('\n')[0];
+    console.log('🏢 経営会議決定:', decision);
+
+    let minutesContent = `【経営戦略会議】\n参加: ${participants.map(e=>`${e.name}（${e.role}）`).join('、')}\n\n`;
+
+    if (decision.startsWith('HIRE|')) {
+      const [, role, name, reason] = decision.split('|');
+      minutesContent += `決定: ${role?.trim()}「${name?.trim()}」を採用\n理由: ${reason?.trim()}`;
+      await hireEmployee(role?.trim(), name?.trim(), reason?.trim(), participants);
+    } else if (decision.startsWith('MOVE|')) {
+      const reason = decision.split('|')[1]?.trim();
+      minutesContent += `決定: オフィス移転\n理由: ${reason}`;
+      if (nextStage) await triggerOfficeMove(reason, participants);
+      else addLog('🏢 経営会議: 現在が最大規模のオフィスです。成長継続！');
+    } else {
+      const reason = decision.split('|')[1]?.trim() || '現状維持';
+      minutesContent += `決定: 現状維持\n理由: ${reason}`;
+      addLog(`🤝 経営会議: ${reason}`);
+    }
+
+    meetingMinutes.unshift({
+      id: 'strategic_' + Date.now(),
+      date: getJST().toLocaleDateString('ja-JP'),
+      type: '経営戦略会議',
+      participants: participants.map(e => `${e.name}（${e.role}）`),
+      topic: '会社の成長戦略',
+      content: minutesContent,
+    });
+    if (meetingMinutes.length > 20) meetingMinutes.pop();
+
+  } catch(err) {
+    console.error('経営会議エラー:', err.message);
+  }
+
+  setTimeout(() => {
+    participants.forEach(emp => {
+      const pos = randomPosInRoom(emp.room);
+      emp.targetX = pos.x; emp.targetY = pos.y; emp.state = 'idle';
+    });
+    strategicMeetingInProgress = false;
+  }, 15000);
+}
+
+async function hireEmployee(role, name, reason, deciders) {
+  if (!role) return;
+  if (employees.find(e => e.role === role)) {
+    addLog(`🤝 採用検討: ${role}は既に在籍中`);
+    return;
+  }
+
+  let roleConfig = ROLE_POOL.find(r => r.role === role)
+    || ROLE_POOL.find(r => !employees.find(e => e.role === r.role));
+  if (!roleConfig) return;
+
+  const rooms = getCurrentRooms();
+  const room = rooms[roleConfig.room] ? roleConfig.room
+    : rooms[roleConfig.fallback] ? roleConfig.fallback : 'reception';
+
+  const finalName = (name && name.length > 1 && name !== 'undefined') ? name
+    : NAME_POOL.find(n => !employees.find(e => e.name === n)) || NAME_POOL[Math.floor(Math.random()*NAME_POOL.length)];
+
+  const pos = randomPosInRoom(room);
+  employees.push({
+    id: role.replace(/[・\s]/g,'_') + '_' + Date.now(),
+    name: finalName,
+    role: roleConfig.role,
+    room,
+    state: 'idle',
+    thought: `${roleConfig.role}として入社しました！よろしくお願いします。`,
+    color: roleConfig.color,
+    skinColor: roleConfig.skinColor,
+    x: pos.x, y: pos.y, targetX: pos.x, targetY: pos.y,
+    busy: false, overtimeHours: 0,
+    monthlyOvertimeLimit: Math.floor(Math.random()*80+20),
+    hadPresidentMeeting: false, isHome: false, dancing: false,
+  });
+
+  addLog(`🎉 ${finalName}さん（${roleConfig.role}）が入社！理由: ${reason || '事業拡大'}`);
+  saveState();
+}
+
+async function triggerOfficeMove(reason, deciders) {
+  if (company.officeMoving) return;
+  const nextStage = OFFICE_STAGES[company.officeStage];
+  if (!nextStage) return;
+
+  company.officeMoving = true;
+  addLog(`🚚 AIエージェント会議決定：「${nextStage.name}」へ移転します！理由: ${reason}`);
+
+  setTimeout(() => {
+    company.officeStage++;
+    company.officeMoving = false;
+
+    const newRooms = ROOM_RANGES_BY_STAGE[company.officeStage];
+    employees.forEach(emp => {
+      if (!newRooms[emp.room]) {
+        const rc = ROLE_POOL.find(r => r.role === emp.role);
+        emp.room = (rc && newRooms[rc.room]) ? rc.room
+          : (rc && newRooms[rc.fallback]) ? rc.fallback : 'reception';
+      }
+      const pos = randomPosInRoom(emp.room);
+      emp.targetX = pos.x; emp.targetY = pos.y;
+    });
+
+    const stageName = OFFICE_STAGES[company.officeStage - 1].name;
+    addLog(`✨ 「${stageName}」への移転完了！新オフィスで更なる成長を！`);
+    saveState();
+
+    meetingMinutes.unshift({
+      id: 'move_' + Date.now(),
+      date: getJST().toLocaleDateString('ja-JP'),
+      type: '🏢 オフィス移転',
+      participants: deciders.map(e => `${e.name}（${e.role}）`),
+      topic: `${stageName}への移転完了`,
+      content: `【移転完了】\n新オフィス: ${stageName}\n移転理由: ${reason}\n社員数: ${employees.length}名\n\n全スタッフが新オフィスに移転しました。`,
+    });
+    if (meetingMinutes.length > 20) meetingMinutes.pop();
+  }, 20000);
 }
 
 // ===== ☕ Webhookログ =====
@@ -225,36 +472,23 @@ app.get('/api/webhook-log', (req, res) => res.json(webhookLog));
 // ===== ☕ Buy Me a Coffee webhook =====
 app.post('/api/coffee', async (req, res) => {
   res.sendStatus(200);
-
   const body = req.body;
   const headers = req.headers;
   webhookLog.unshift({ time: new Date().toISOString(), headers: { 'content-type': headers['content-type'], 'user-agent': headers['user-agent'] }, body });
   if (webhookLog.length > 20) webhookLog.pop();
-  console.log('☕ BMC Webhook受信 headers:', JSON.stringify({ 'content-type': headers['content-type'] }));
-  console.log('☕ BMC Webhook受信 body:', JSON.stringify(body, null, 2));
+  console.log('☕ BMC Webhook受信:', JSON.stringify(body, null, 2));
 
-  // BMCの様々なフォーマットに対応
   const supporterName =
-    body?.data?.supporter_name ||
-    body?.supporter_name ||
-    body?.data?.payer_name ||
-    body?.data?.supporter_email?.split('@')[0] ||
-    body?.data?.email?.split('@')[0] ||
-    '匿名さん';
-  const coffees =
-    body?.data?.coffee_count ||
-    body?.coffee_count ||
-    body?.data?.amount ||
-    1;
+    body?.data?.supporter_name || body?.supporter_name ||
+    body?.data?.payer_name || body?.data?.supporter_email?.split('@')[0] ||
+    body?.data?.email?.split('@')[0] || '匿名さん';
+  const coffees = body?.data?.coffee_count || body?.coffee_count || body?.data?.amount || 1;
 
-  console.log(`☕ コーヒーが届きました！ from ${supporterName} x${coffees}`);
   company.coffeeCount += Number(coffees);
   addLog(`☕ ${supporterName}さんがコーヒーを${coffees}杯おごってくれました！ありがとうございます！`);
-
   triggerCelebration(supporterName, Number(coffees)).catch(e => console.error('Celebration error:', e));
 });
 
-// テスト用エンドポイント（本番でも使えます）
 app.post('/api/coffee/test', async (req, res) => {
   const name = req.body?.name || 'テストさん';
   const coffees = req.body?.coffees || 1;
@@ -265,16 +499,13 @@ app.post('/api/coffee/test', async (req, res) => {
 });
 
 async function triggerCelebration(supporterName, coffees) {
-  // 先に歌を生成してからダンス開始
   let song;
   try {
     const res = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       system: `あなたは建築設計事務所のスタッフです。陽気でユーモアがあります。`,
-      messages: [{
-        role: 'user',
-        content: `${supporterName}さんがコーヒーを${coffees}杯おごってくれました！
+      messages: [{ role: 'user', content: `${supporterName}さんがコーヒーを${coffees}杯おごってくれました！
 鈴木建築設計事務所の全スタッフでお礼の歌を歌います。
 建築設計事務所らしい内容を含めた楽しいお礼の歌を作ってください。
 形式：
@@ -289,46 +520,35 @@ async function triggerCelebration(supporterName, coffees) {
 （2番）
 歌詞4行
 
-踊り方の説明: 〇〇（キャラクターの動きを一文で）`
-      }],
+踊り方の説明: 〇〇（キャラクターの動きを一文で）` }],
     });
     song = res.content[0].text;
   } catch (e) {
     song = `♪ タイトル: 「${supporterName}さんありがとうの歌」 ♪\n\n（1番）\n${supporterName}さん ありがとう\nコーヒーの香り 事務所に広がる\n図面を描く手も 軽くなるよ\n今日も頑張れる 設計の仕事\n\n（サビ）\nありがとう ありがとう\nコーヒー片手に 夢を建てよう\nありがとう ありがとう\n鈴木建築 今日も全力で！\n\n踊り方の説明: 全員でコーヒーカップを持って左右に揺れながら踊ります`;
   }
 
-  // 歌が準備できたらcelebrationをセットしてダンス開始
-  celebration = {
-    supporterName,
-    coffees,
-    song,
-    startTime: Date.now(),
-    duration: 60000,
-  };
+  celebration = { supporterName, coffees, song, startTime: Date.now(), duration: 60000 };
 
-  // 全員を受付エリアに集める（帰宅中でも呼び戻す）
-  const centerX = 290, centerY = 402;
+  const rooms = getCurrentRooms();
+  const rec = rooms.reception;
+  const centerX = rec ? rec.x + rec.w/2 : 290;
+  const centerY = rec ? rec.y + rec.h/2 : 402;
+
   employees.forEach((emp, i) => {
     const angle = (i / employees.length) * Math.PI * 2;
-    emp.targetX = centerX + Math.cos(angle) * 80;
-    emp.targetY = centerY + Math.sin(angle) * 40;
-    emp.dancing = true;
-    emp.isHome = false;
+    emp.targetX = centerX + Math.cos(angle) * Math.min(80, rec?.w/3 || 80);
+    emp.targetY = centerY + Math.sin(angle) * Math.min(40, rec?.h/3 || 40);
+    emp.dancing = true; emp.isHome = false;
     emp.thought = `☕ ${supporterName}さん、ありがとう！`;
-    emp.state = 'working';
-    emp.busy = true;
+    emp.state = 'working'; emp.busy = true;
   });
 
-  // 60秒後に通常業務に戻る
   setTimeout(() => {
     celebration = null;
     employees.forEach(emp => {
-      emp.dancing = false;
-      emp.busy = false;
-      emp.state = 'idle';
+      emp.dancing = false; emp.busy = false; emp.state = 'idle';
       const pos = randomPosInRoom(emp.room);
-      emp.targetX = pos.x;
-      emp.targetY = pos.y;
+      emp.targetX = pos.x; emp.targetY = pos.y;
     });
     addLog(`🎵 ${supporterName}さんへのお礼のダンスが終わりました。ありがとうございました！`);
   }, 60000);
@@ -377,26 +597,6 @@ async function agentThink(emp) {
     emp.thought = '設計業務を進めています。'; emp.state = 'working';
   }
   setTimeout(() => { emp.busy = false; emp.state = 'idle'; }, 10000);
-}
-
-// ===== 成長 =====
-function checkGrowth() {
-  for (const m of MILESTONES) {
-    if (company.revenue >= m.revenue && !employees.find(e=>e.role===m.role)) {
-      const pos = randomPosInRoom(m.room);
-      employees.push({
-        id: m.role+'_'+Date.now(), name:m.name, role:m.role, room:m.room,
-        state:'idle', thought:`${m.role}として入社しました！よろしくお願いします。`,
-        color:m.color, skinColor:m.skinColor,
-        x:pos.x, y:pos.y, targetX:pos.x, targetY:pos.y,
-        busy:false, overtimeHours:0,
-        monthlyOvertimeLimit:Math.floor(Math.random()*80+20),
-        hadPresidentMeeting:false, isHome:false, dancing:false,
-      });
-      addLog(`🎉 ${m.name}さん（${m.role}）が入社しました！`);
-      saveState();
-    }
-  }
 }
 
 // ===== 残業・所長面談 =====
@@ -464,7 +664,6 @@ async function triggerMeeting() {
 参加者: ${participants.map(e=>`${e.name}（${e.role}）`).join('、')}
 案件: ${activeProject.name}（${PHASES[activeProject.phaseIndex]?.name}フェーズ、進捗${activeProject.progress}%）
 【日時】${getJST().toLocaleDateString('ja-JP')} ${getJSTHour()}:00
-【参加者】${participants.map(e=>`${e.name}（${e.role}）`).join('、')}
 【案件】${activeProject.name}
 【内容】（具体的な建築設計の議論を4〜5往復）
 【決定事項】1. 〇〇 2. 〇〇
@@ -483,8 +682,11 @@ async function triggerMeeting() {
 
 // ===== API =====
 app.get('/api/state', (req, res) => {
+  const stageInfo = OFFICE_STAGES[company.officeStage - 1];
   res.json({
-    company, employees,
+    company, stageInfo,
+    rooms: getCurrentRooms(),
+    employees,
     projects: projects.slice(-30),
     meetingMinutes: meetingMinutes.slice(0,15),
     isWorking: isWorkingHours(),
@@ -510,13 +712,16 @@ setInterval(() => {
 
 setInterval(() => { if (Math.random()<0.20) triggerMeeting(); }, 3*60*1000);
 
-// 実際の残業時間を1分ごとに加算（18:00〜22:00 JSTのみ）
+// 経営戦略会議（20分ごとに開催）
+setInterval(() => {
+  if (employees.length >= 2 && Math.random() < 0.8) agentStrategicMeeting();
+}, 20 * 60 * 1000);
+
+// 実際の残業時間を1分ごとに加算
 setInterval(() => {
   if (isOvertimeHours()) {
     employees.forEach(emp => {
-      if (!emp.isHome && !emp.dancing) {
-        emp.overtimeHours += 1 / 60; // 1分 = 1/60時間
-      }
+      if (!emp.isHome && !emp.dancing) emp.overtimeHours += 1/60;
     });
   }
 }, 60 * 1000);
@@ -531,10 +736,9 @@ setInterval(() => {
   }
 }, 60*1000);
 
-// 起動時に保存データを読み込む
-loadState();
-
-setTimeout(() => agentThink(employees[0]), 2000);
+loadState().then(() => {
+  setTimeout(() => agentThink(employees[0]), 2000);
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => { console.log(`\n🏢 ${company.name}が開きました！\n👉 http://localhost:${PORT}\n`); });
