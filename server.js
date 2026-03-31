@@ -527,7 +527,7 @@ async function triggerCelebration(supporterName, coffees) {
     song = `♪ タイトル: 「${supporterName}さんありがとうの歌」 ♪\n\n（1番）\n${supporterName}さん ありがとう\nコーヒーの香り 事務所に広がる\n図面を描く手も 軽くなるよ\n今日も頑張れる 設計の仕事\n\n（サビ）\nありがとう ありがとう\nコーヒー片手に 夢を建てよう\nありがとう ありがとう\n鈴木建築 今日も全力で！\n\n踊り方の説明: 全員でコーヒーカップを持って左右に揺れながら踊ります`;
   }
 
-  celebration = { supporterName, coffees, song, startTime: Date.now(), duration: 60000 };
+  celebration = { supporterName, coffees, song, startTime: Date.now(), duration: 30000 };
 
   const rooms = getCurrentRooms();
   const rec = rooms.reception;
@@ -551,7 +551,7 @@ async function triggerCelebration(supporterName, coffees) {
       emp.targetX = pos.x; emp.targetY = pos.y;
     });
     addLog(`🎵 ${supporterName}さんへのお礼のダンスが終わりました。ありがとうございました！`);
-  }, 60000);
+  }, 30000);
 }
 
 // ===== エージェント思考 =====
