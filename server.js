@@ -145,15 +145,17 @@ function applyLoadedData(data) {
 }
 
 function saveStateRemote() {
-  const body = JSON.stringify(buildSaveData());
-  const req = https.request({
-    hostname: 'api.jsonbin.io',
-    path: `/v3/b/${JSONBIN_BIN}`,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY, 'Content-Length': Buffer.byteLength(body) }
-  }, () => { console.log('☁️ JSONBinに保存しました'); });
-  req.on('error', e => console.error('JSONBin保存エラー:', e.message));
-  req.write(body); req.end();
+  return new Promise((resolve) => {
+    const body = JSON.stringify(buildSaveData());
+    const req = https.request({
+      hostname: 'api.jsonbin.io',
+      path: `/v3/b/${JSONBIN_BIN}`,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY, 'Content-Length': Buffer.byteLength(body) }
+    }, () => { console.log('☁️ JSONBinに保存しました'); resolve(); });
+    req.on('error', e => { console.error('JSONBin保存エラー:', e.message); resolve(); });
+    req.write(body); req.end();
+  });
 }
 
 function loadStateRemote() {
@@ -187,8 +189,8 @@ function loadStateLocal() {
 }
 
 function saveState() {
-  if (JSONBIN_KEY && JSONBIN_BIN) saveStateRemote();
-  else saveStateLocal();
+  if (JSONBIN_KEY && JSONBIN_BIN) return saveStateRemote();
+  else { saveStateLocal(); return Promise.resolve(); }
 }
 
 async function loadState() {
@@ -750,14 +752,15 @@ setInterval(() => {
 }, 60*1000);
 
 // デプロイ前にRailwayがSIGTERMを送るので、その時点で状態を保存
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('⚠️ SIGTERM受信: 状態を保存して終了します...');
-  saveState();
-  setTimeout(() => process.exit(0), 5000); // JSONBinへの送信完了を待つ
+  await saveState(); // 保存完了を待ってから終了
+  console.log('✅ 保存完了。終了します。');
+  process.exit(0);
 });
-process.on('SIGINT', () => {
-  saveState();
-  setTimeout(() => process.exit(0), 3000);
+process.on('SIGINT', async () => {
+  await saveState();
+  process.exit(0);
 });
 
 loadState().then(() => {
