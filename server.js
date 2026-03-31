@@ -297,7 +297,7 @@ let strategicMeetingInProgress = false;
 
 async function agentStrategicMeeting() {
   if (strategicMeetingInProgress || celebration || company.officeMoving) return;
-  if (!isWorkingHours() || employees.length < 2) return;
+  if (!isWorkingHours() || employees.length < 1) return;
 
   strategicMeetingInProgress = true;
 
@@ -310,6 +310,7 @@ async function agentStrategicMeeting() {
   const president = employees.find(e => e.id === 'president');
   const others = employees.filter(e => e.id !== 'president').sort(() => Math.random() - 0.5).slice(0, 2);
   const participants = [president, ...others].filter(Boolean);
+  if (participants.length === 0) return;
 
   // 会議室に集合
   participants.forEach(emp => {
@@ -712,10 +713,10 @@ setInterval(() => {
 
 setInterval(() => { if (Math.random()<0.20) triggerMeeting(); }, 3*60*1000);
 
-// 経営戦略会議（20分ごとに開催）
+// 経営戦略会議（10分ごとに開催）
 setInterval(() => {
-  if (employees.length >= 2 && Math.random() < 0.8) agentStrategicMeeting();
-}, 20 * 60 * 1000);
+  if (Math.random() < 0.8) agentStrategicMeeting();
+}, 10 * 60 * 1000);
 
 // 実際の残業時間を1分ごとに加算
 setInterval(() => {
@@ -738,6 +739,9 @@ setInterval(() => {
 
 loadState().then(() => {
   setTimeout(() => agentThink(employees[0]), 2000);
+  // 起動時に経営会議を開き、社員不足を即座に補う
+  setTimeout(() => agentStrategicMeeting(), 5000);
+  setTimeout(() => agentStrategicMeeting(), 3 * 60 * 1000);  // 3分後にもう一度
 });
 
 const PORT = process.env.PORT || 3000;
