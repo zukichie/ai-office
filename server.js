@@ -3,50 +3,106 @@ const express = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 
 const app = express();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// ===== 状態の保存・読み込み =====
+// ===== 状態の保存・読み込み (JSONBin.io または ローカルファイル) =====
+const JSONBIN_KEY = process.env.JSONBIN_API_KEY;
+const JSONBIN_BIN  = process.env.JSONBIN_BIN_ID;
 const DATA_FILE = process.env.DATA_PATH ? path.join(process.env.DATA_PATH, 'state.json') : path.join(__dirname, 'data.json');
 
-function saveState() {
-  try {
-    const data = {
-      company: { ...company },
-      employees: employees.map(e => ({ ...e, busy: false, dancing: false, state: 'idle' })),
-      projects: projects.slice(-50),
-      savedAt: Date.now(),
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data));
-  } catch(e) { console.error('保存エラー:', e.message); }
+function buildSaveData() {
+  return {
+    company: { ...company },
+    employees: employees.map(e => ({ ...e, busy: false, dancing: false, state: 'idle' })),
+    projects: projects.slice(-50),
+    savedAt: Date.now(),
+  };
 }
 
-function loadState() {
+function applyLoadedData(data) {
+  if (!data || !data.savedAt) return;
+  Object.assign(company, data.company);
+  if (data.employees?.length > 0) {
+    employees.length = 0;
+    data.employees.forEach(e => {
+      const pos = randomPosInRoom(e.room);
+      employees.push({ ...e, x: pos.x, y: pos.y, targetX: pos.x, targetY: pos.y,
+        busy: false, dancing: false, state: 'idle', isHome: false });
+    });
+  }
+  if (data.projects?.length > 0) projects.push(...data.projects);
+  console.log(`✅ 状態を復元: 売上¥${company.revenue.toLocaleString()} / 社員${employees.length}名 / 案件${projects.length}件`);
+}
+
+// JSONBin.io を使った保存
+function saveStateRemote() {
+  const body = JSON.stringify(buildSaveData());
+  const req = https.request({
+    hostname: 'api.jsonbin.io',
+    path: `/v3/b/${JSONBIN_BIN}`,
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': JSONBIN_KEY,
+      'Content-Length': Buffer.byteLength(body),
+    }
+  }, () => { console.log('☁️ JSONBinに保存しました'); });
+  req.on('error', e => console.error('JSONBin保存エラー:', e.message));
+  req.write(body);
+  req.end();
+}
+
+// JSONBin.io から読み込み
+function loadStateRemote() {
+  return new Promise(resolve => {
+    https.get({
+      hostname: 'api.jsonbin.io',
+      path: `/v3/b/${JSONBIN_BIN}/latest`,
+      headers: { 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Meta': 'false' }
+    }, res => {
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => {
+        try { applyLoadedData(JSON.parse(raw)); } catch(e) { console.error('JSONBin読み込みエラー:', e.message); }
+        resolve();
+      });
+    }).on('error', e => { console.error('JSONBin取得エラー:', e.message); resolve(); });
+  });
+}
+
+// ローカルファイルに保存（開発用フォールバック）
+function saveStateLocal() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(buildSaveData()));
+  } catch(e) { console.error('ローカル保存エラー:', e.message); }
+}
+
+function loadStateLocal() {
   try {
     if (!fs.existsSync(DATA_FILE)) return;
     const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    // 5日以上古いデータは無視
     if (Date.now() - data.savedAt > 5 * 24 * 60 * 60 * 1000) return;
-
-    Object.assign(company, data.company);
-    if (data.employees?.length > 0) {
-      employees.length = 0;
-      data.employees.forEach(e => {
-        const pos = randomPosInRoom(e.room);
-        employees.push({ ...e, x: pos.x, y: pos.y, targetX: pos.x, targetY: pos.y,
-          busy: false, dancing: false, state: 'idle', isHome: false });
-      });
-    }
-    if (data.projects?.length > 0) projects.push(...data.projects);
-    console.log(`✅ 状態を復元: 売上¥${company.revenue.toLocaleString()} / 社員${employees.length}名 / 案件${projects.length}件`);
-  } catch(e) { console.error('読み込みエラー:', e.message); }
+    applyLoadedData(data);
+  } catch(e) { console.error('ローカル読み込みエラー:', e.message); }
 }
 
-// 30秒ごとに保存
-setInterval(saveState, 30 * 1000);
+function saveState() {
+  if (JSONBIN_KEY && JSONBIN_BIN) saveStateRemote();
+  else saveStateLocal();
+}
+
+async function loadState() {
+  if (JSONBIN_KEY && JSONBIN_BIN) await loadStateRemote();
+  else loadStateLocal();
+}
+
+// 60秒ごとに保存
+setInterval(saveState, 60 * 1000);
 
 // ===== 日本時間 =====
 function getJST() { return new Date(Date.now() + 9 * 60 * 60 * 1000); }
