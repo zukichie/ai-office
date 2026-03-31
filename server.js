@@ -158,6 +158,15 @@ app.post('/api/coffee/test', async (req, res) => {
 });
 
 async function triggerCelebration(supporterName, coffees) {
+  // 先にcelebrationを設定（歌はすぐ表示できる仮テキストで）
+  celebration = {
+    supporterName,
+    coffees,
+    song: `☕ ${supporterName}さん、ありがとうございます！\n\n🎵 歌を準備中です...お待ちください 🎵`,
+    startTime: Date.now(),
+    duration: 60000,
+  };
+
   // 全員を受付エリアに集める（帰宅中でも呼び戻す）
   const centerX = 290, centerY = 402;
   employees.forEach((emp, i) => {
@@ -165,14 +174,13 @@ async function triggerCelebration(supporterName, coffees) {
     emp.targetX = centerX + Math.cos(angle) * 80;
     emp.targetY = centerY + Math.sin(angle) * 40;
     emp.dancing = true;
-    emp.isHome = false; // 帰宅中でも呼び戻す
+    emp.isHome = false;
     emp.thought = `☕ ${supporterName}さん、ありがとう！`;
     emp.state = 'working';
     emp.busy = true;
   });
 
-  // Claudeにお礼の歌を作ってもらう
-  let song = '';
+  // Claudeにお礼の歌を作ってもらう（完成したらcelebrationを更新）
   try {
     const res = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -198,18 +206,10 @@ async function triggerCelebration(supporterName, coffees) {
 踊り方の説明: 〇〇（キャラクターの動きを一文で）`
       }],
     });
-    song = res.content[0].text;
+    if (celebration) celebration.song = res.content[0].text;
   } catch (e) {
-    song = `♪ タイトル: 「コーヒーありがとうの歌」 ♪\n\n（1番）\n${supporterName}さん ありがとう\nコーヒーの香り 事務所に広がる\n図面を描く手も 軽くなるよ\n今日も頑張れる 設計の仕事\n\n（サビ）\nありがとう ありがとう\nコーヒー片手に 夢を建てよう\nありがとう ありがとう\n鈴木建築 今日も全力で！\n\n踊り方の説明: 全員でコーヒーカップを持って左右に揺れながら踊ります`;
+    if (celebration) celebration.song = `♪ タイトル: 「${supporterName}さんありがとうの歌」 ♪\n\n（1番）\n${supporterName}さん ありがとう\nコーヒーの香り 事務所に広がる\n図面を描く手も 軽くなるよ\n今日も頑張れる 設計の仕事\n\n（サビ）\nありがとう ありがとう\nコーヒー片手に 夢を建てよう\nありがとう ありがとう\n鈴木建築 今日も全力で！\n\n踊り方の説明: 全員でコーヒーカップを持って左右に揺れながら踊ります`;
   }
-
-  celebration = {
-    supporterName,
-    coffees,
-    song,
-    startTime: Date.now(),
-    duration: 60000, // 60秒間
-  };
 
   // 60秒後に通常業務に戻る
   setTimeout(() => {
