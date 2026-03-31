@@ -146,14 +146,31 @@ function applyLoadedData(data) {
 
 function saveStateRemote() {
   return new Promise((resolve) => {
-    const body = JSON.stringify(buildSaveData());
+    const saveData = buildSaveData();
+    const body = JSON.stringify(saveData);
     const req = https.request({
       hostname: 'api.jsonbin.io',
       path: `/v3/b/${JSONBIN_BIN}`,
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY, 'Content-Length': Buffer.byteLength(body) }
-    }, () => { console.log('☁️ JSONBinに保存しました'); resolve(); });
-    req.on('error', e => { console.error('JSONBin保存エラー:', e.message); resolve(); });
+    }, (res) => {
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log(`☁️ JSONBin保存成功 (HTTP ${res.statusCode}) 売上:¥${saveData.company.revenue.toLocaleString()} 社員:${saveData.employees.length}名`);
+        } else {
+          console.error(`❌ JSONBin保存失敗 HTTP ${res.statusCode}: ${raw.substring(0, 200)}`);
+          saveStateLocal(); // ローカルにもバックアップ
+        }
+        resolve();
+      });
+    });
+    req.on('error', e => {
+      console.error('JSONBin保存エラー:', e.message);
+      saveStateLocal(); // ローカルにもバックアップ
+      resolve();
+    });
     req.write(body); req.end();
   });
 }
@@ -168,10 +185,31 @@ function loadStateRemote() {
       let raw = '';
       res.on('data', c => raw += c);
       res.on('end', () => {
-        try { applyLoadedData(JSON.parse(raw)); } catch(e) { console.error('JSONBin読み込みエラー:', e.message); }
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.savedAt) {
+              applyLoadedData(parsed);
+              console.log(`☁️ JSONBin読み込み成功 (HTTP ${res.statusCode})`);
+            } else {
+              console.warn('⚠️ JSONBinのデータが空またはsavedAtなし。ローカルを試みます。');
+              loadStateLocal();
+            }
+          } catch(e) {
+            console.error('JSONBin読み込みパースエラー:', e.message, raw.substring(0, 200));
+            loadStateLocal();
+          }
+        } else {
+          console.error(`❌ JSONBin読み込み失敗 HTTP ${res.statusCode}: ${raw.substring(0, 200)}`);
+          loadStateLocal();
+        }
         resolve();
       });
-    }).on('error', e => { console.error('JSONBin取得エラー:', e.message); resolve(); });
+    }).on('error', e => {
+      console.error('JSONBin取得エラー:', e.message);
+      loadStateLocal();
+      resolve();
+    });
   });
 }
 
@@ -198,7 +236,7 @@ async function loadState() {
   else loadStateLocal();
 }
 
-setInterval(saveState, 5 * 60 * 1000); // 5分ごとに保存（JSONBin API節約）
+setInterval(saveState, 60 * 1000); // 1分ごとに保存
 
 // ===== 日本時間 =====
 function getJST() { return new Date(Date.now() + 9 * 60 * 60 * 1000); }
@@ -716,6 +754,16 @@ app.get('/api/state', (req, res) => {
   });
 });
 
+// ===== 手動保存エンドポイント =====
+app.get('/api/save', async (req, res) => {
+  try {
+    await saveState();
+    res.json({ ok: true, revenue: company.revenue, employees: employees.length, savedAt: new Date().toISOString() });
+  } catch(e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ===== シミュレーションループ =====
 setInterval(() => {
   if (getJSTHour() >= 9) employees.forEach(e => { e.isHome = false; });
@@ -752,16 +800,18 @@ setInterval(() => {
 }, 60*1000);
 
 // デプロイ前にRailwayがSIGTERMを送るので、その時点で状態を保存
-process.on('SIGTERM', async () => {
-  console.log('⚠️ SIGTERM受信: 状態を保存して終了します...');
-  await saveState(); // 保存完了を待ってから終了
+async function gracefulShutdown(signal) {
+  console.log(`⚠️ ${signal}受信: 状態を保存して終了します... 売上:¥${company.revenue.toLocaleString()} 社員:${employees.length}名`);
+  // 必ずローカルには保存
+  saveStateLocal();
+  // リモートにも保存（最大8秒待つ）
+  const timeout = new Promise(resolve => setTimeout(resolve, 8000));
+  await Promise.race([saveState(), timeout]);
   console.log('✅ 保存完了。終了します。');
   process.exit(0);
-});
-process.on('SIGINT', async () => {
-  await saveState();
-  process.exit(0);
-});
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 loadState().then(() => {
   setTimeout(() => agentThink(employees[0]), 2000);
