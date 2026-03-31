@@ -270,7 +270,7 @@ async function triggerCelebration(supporterName, coffees) {
   try {
     const res = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+      max_tokens: 500,
       system: `あなたは建築設計事務所のスタッフです。陽気でユーモアがあります。`,
       messages: [{
         role: 'user',
