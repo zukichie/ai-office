@@ -196,7 +196,7 @@ async function loadState() {
   else loadStateLocal();
 }
 
-setInterval(saveState, 30 * 1000);
+setInterval(saveState, 5 * 60 * 1000); // 5分ごとに保存（JSONBin API節約）
 
 // ===== 日本時間 =====
 function getJST() { return new Date(Date.now() + 9 * 60 * 60 * 1000); }
@@ -320,23 +320,25 @@ async function agentStrategicMeeting() {
   });
 
   const monthlySalary = employees.reduce((s,e) => s + (e.salary||0), 0);
-  const prompt = `あなたは「${company.name}」の経営会議AIです。
-現在の経営状況を冷静に分析し、次のアクションを1つだけ決定してください。
+  const revenuePerPerson = Math.round(company.revenue / employees.length / 10000);
+  const prompt = `あなたは「${company.name}」の代表取締役所長です。
+経営判断を1つだけ行ってください。
 
 【経営状況】
 - 社員数: ${employees.length}名 / 累計売上: ¥${company.revenue.toLocaleString()}
-- 月次人件費合計: 月${Math.round(monthlySalary/10000)}万円
-- 進行中案件: ${activeProjects.length}件（社員1名あたり${(activeProjects.length/Math.max(1,employees.length)).toFixed(1)}件）
+- 社員1人あたり売上: 約${revenuePerPerson}万円
+- 月次人件費: 月${Math.round(monthlySalary/10000)}万円
+- 進行中案件: ${activeProjects.length}件
 - 現オフィス: ${currentStage.name}（適正${currentStage.capacity}名）
 - スタッフ: ${employees.map(e=>`${e.role}(月${Math.round((e.salary||0)/10000)}万)`).join('、')}
-${isNearCapacity && nextStage ? `⚠️ オフィスが手狭です。移転を検討してください。` : ''}
+${isNearCapacity && nextStage ? `⚠️ 社員数がオフィス適正人数に近づいています。` : ''}
 
 【採用可能職種】${availableRoles.slice(0,10).map(r=>r.role).join('、')}
 
-【判断基準】
-- 採用は「案件数が多く現スタッフで対応しきれない」「売上が人件費増加を十分に支える」場合のみ
-- 売上が少ない・案件が少ない場合は現状維持
-- 移転は「社員数が現オフィス適正を超えた」場合のみ
+【採用の目安】
+- 社員1人あたり売上が200万円を超えたら採用を前向きに検討
+- 現在${revenuePerPerson}万円 → ${revenuePerPerson >= 200 ? '採用を強く推奨' : '採用は時期尚早'}
+- 採用した場合の月給の目安: 経験・職種に応じて25〜60万円
 
 【回答形式】必ずこの形式で1行のみ答えてください：
 採用→ HIRE|職種名|採用理由(15字以内)|月給(万円・数字のみ)
@@ -751,11 +753,11 @@ setInterval(() => {
 process.on('SIGTERM', () => {
   console.log('⚠️ SIGTERM受信: 状態を保存して終了します...');
   saveState();
-  setTimeout(() => process.exit(0), 3000);
+  setTimeout(() => process.exit(0), 5000); // JSONBinへの送信完了を待つ
 });
 process.on('SIGINT', () => {
   saveState();
-  setTimeout(() => process.exit(0), 1000);
+  setTimeout(() => process.exit(0), 3000);
 });
 
 loadState().then(() => {
