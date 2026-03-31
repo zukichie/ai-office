@@ -2,11 +2,51 @@ require('dotenv').config();
 const express = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+
+// ===== 状態の保存・読み込み =====
+const DATA_FILE = process.env.DATA_PATH ? path.join(process.env.DATA_PATH, 'state.json') : path.join(__dirname, 'data.json');
+
+function saveState() {
+  try {
+    const data = {
+      company: { ...company },
+      employees: employees.map(e => ({ ...e, busy: false, dancing: false, state: 'idle' })),
+      projects: projects.slice(-50),
+      savedAt: Date.now(),
+    };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data));
+  } catch(e) { console.error('保存エラー:', e.message); }
+}
+
+function loadState() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    // 5日以上古いデータは無視
+    if (Date.now() - data.savedAt > 5 * 24 * 60 * 60 * 1000) return;
+
+    Object.assign(company, data.company);
+    if (data.employees?.length > 0) {
+      employees.length = 0;
+      data.employees.forEach(e => {
+        const pos = randomPosInRoom(e.room);
+        employees.push({ ...e, x: pos.x, y: pos.y, targetX: pos.x, targetY: pos.y,
+          busy: false, dancing: false, state: 'idle', isHome: false });
+      });
+    }
+    if (data.projects?.length > 0) projects.push(...data.projects);
+    console.log(`✅ 状態を復元: 売上¥${company.revenue.toLocaleString()} / 社員${employees.length}名 / 案件${projects.length}件`);
+  } catch(e) { console.error('読み込みエラー:', e.message); }
+}
+
+// 30秒ごとに保存
+setInterval(saveState, 30 * 1000);
 
 // ===== 日本時間 =====
 function getJST() { return new Date(Date.now() + 9 * 60 * 60 * 1000); }
@@ -412,6 +452,9 @@ setInterval(() => {
     addLog('📅 月次リセット: 残業時間をリセットしました');
   }
 }, 60*1000);
+
+// 起動時に保存データを読み込む
+loadState();
 
 setTimeout(() => agentThink(employees[0]), 2000);
 
