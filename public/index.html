@@ -393,7 +393,7 @@ function updateOvertime() {
     return `
       <div style="margin-bottom:8px;padding:6px 10px;background:rgba(255,255,255,.04);border:1px solid #1e293b;border-radius:6px">
         <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-          <span style="font-size:12px;color:#e2e8f0">${emp.name}（${emp.role}）</span>
+          <span style="font-size:12px;color:#e2e8f0">${emp.name}（${emp.role}）${emp.salary ? `<span style="font-size:10px;color:#64748b"> 月給${Math.round(emp.salary/10000)}万円</span>` : ''}</span>
           <span style="font-size:11px;color:${color}">${label} ${Math.round(emp.overtimeHours)}h / 上限${emp.monthlyOvertimeLimit}h</span>
         </div>
         <div style="background:#1e293b;border-radius:3px;height:5px">

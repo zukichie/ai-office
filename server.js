@@ -319,22 +319,27 @@ async function agentStrategicMeeting() {
     emp.state = 'working'; emp.thought = '経営会議中';
   });
 
+  const monthlySalary = employees.reduce((s,e) => s + (e.salary||0), 0);
   const prompt = `あなたは「${company.name}」の経営会議AIです。
-現在の状況を分析し、次のアクションを1つだけ決定してください。
+現在の経営状況を冷静に分析し、次のアクションを1つだけ決定してください。
 
-【現況】
-- 社員数: ${employees.length}名（現オフィス適正: ${currentStage.capacity}名まで）
-- 現オフィス: ${currentStage.name}
-- 累計売上: ¥${company.revenue.toLocaleString()}
-- 進行中案件: ${activeProjects.length}件（社員1名あたり${(activeProjects.length/employees.length).toFixed(1)}件）
-- スタッフ: ${employees.map(e=>e.role).join('、')}
-${isNearCapacity && nextStage ? `⚠️ オフィスが手狭です。「${nextStage.name}」への移転を強く検討してください。` : ''}
-${!nextStage ? '現在が最大規模のオフィスです。' : ''}
+【経営状況】
+- 社員数: ${employees.length}名 / 累計売上: ¥${company.revenue.toLocaleString()}
+- 月次人件費合計: 月${Math.round(monthlySalary/10000)}万円
+- 進行中案件: ${activeProjects.length}件（社員1名あたり${(activeProjects.length/Math.max(1,employees.length)).toFixed(1)}件）
+- 現オフィス: ${currentStage.name}（適正${currentStage.capacity}名）
+- スタッフ: ${employees.map(e=>`${e.role}(月${Math.round((e.salary||0)/10000)}万)`).join('、')}
+${isNearCapacity && nextStage ? `⚠️ オフィスが手狭です。移転を検討してください。` : ''}
 
-【採用可能職種（一部）】${availableRoles.slice(0,10).map(r=>r.role).join('、')}
+【採用可能職種】${availableRoles.slice(0,10).map(r=>r.role).join('、')}
+
+【判断基準】
+- 採用は「案件数が多く現スタッフで対応しきれない」「売上が人件費増加を十分に支える」場合のみ
+- 売上が少ない・案件が少ない場合は現状維持
+- 移転は「社員数が現オフィス適正を超えた」場合のみ
 
 【回答形式】必ずこの形式で1行のみ答えてください：
-採用→ HIRE|職種名|氏名|採用理由(15字以内)
+採用→ HIRE|職種名|氏名|採用理由(15字以内)|月給(万円・数字のみ)
 移転→ MOVE|移転理由(15字以内)
 維持→ STAY|理由(15字以内)`;
 
@@ -351,9 +356,14 @@ ${!nextStage ? '現在が最大規模のオフィスです。' : ''}
     let minutesContent = `【経営戦略会議】\n参加: ${participants.map(e=>`${e.name}（${e.role}）`).join('、')}\n\n`;
 
     if (decision.startsWith('HIRE|')) {
-      const [, role, name, reason] = decision.split('|');
-      minutesContent += `決定: ${role?.trim()}「${name?.trim()}」を採用\n理由: ${reason?.trim()}`;
-      await hireEmployee(role?.trim(), name?.trim(), reason?.trim(), participants);
+      const parts = decision.split('|');
+      const role   = parts[1]?.trim();
+      const name   = parts[2]?.trim();
+      const reason = parts[3]?.trim();
+      const salaryMan = parseInt(parts[4]) || 30; // 万円
+      const salary = salaryMan * 10000;
+      minutesContent += `決定: ${role}「${name}」を採用\n月給: ${salaryMan}万円\n理由: ${reason}`;
+      await hireEmployee(role, name, reason, participants, salary);
     } else if (decision.startsWith('MOVE|')) {
       const reason = decision.split('|')[1]?.trim();
       minutesContent += `決定: オフィス移転\n理由: ${reason}`;
@@ -388,7 +398,7 @@ ${!nextStage ? '現在が最大規模のオフィスです。' : ''}
   }, 15000);
 }
 
-async function hireEmployee(role, name, reason, deciders) {
+async function hireEmployee(role, name, reason, deciders, salary = 300000) {
   if (!role) return;
   if (employees.find(e => e.role === role)) {
     addLog(`🤝 採用検討: ${role}は既に在籍中`);
@@ -417,12 +427,12 @@ async function hireEmployee(role, name, reason, deciders) {
     color: roleConfig.color,
     skinColor: roleConfig.skinColor,
     x: pos.x, y: pos.y, targetX: pos.x, targetY: pos.y,
-    busy: false, overtimeHours: 0,
+    busy: false, overtimeHours: 0, salary,
     monthlyOvertimeLimit: Math.floor(Math.random()*80+20),
     hadPresidentMeeting: false, isHome: false, dancing: false,
   });
 
-  addLog(`🎉 ${finalName}さん（${roleConfig.role}）が入社！理由: ${reason || '事業拡大'}`);
+  addLog(`🎉 ${finalName}さん（${roleConfig.role}・月給${Math.round(salary/10000)}万円）が入社！理由: ${reason || '事業拡大'}`);
   saveState();
 }
 
@@ -713,10 +723,10 @@ setInterval(() => {
 
 setInterval(() => { if (Math.random()<0.20) triggerMeeting(); }, 3*60*1000);
 
-// 経営戦略会議（10分ごとに開催）
+// 経営戦略会議（30分ごとに開催）
 setInterval(() => {
-  if (Math.random() < 0.8) agentStrategicMeeting();
-}, 10 * 60 * 1000);
+  if (Math.random() < 0.7) agentStrategicMeeting();
+}, 30 * 60 * 1000);
 
 // 実際の残業時間を1分ごとに加算
 setInterval(() => {
@@ -737,11 +747,19 @@ setInterval(() => {
   }
 }, 60*1000);
 
+// デプロイ前にRailwayがSIGTERMを送るので、その時点で状態を保存
+process.on('SIGTERM', () => {
+  console.log('⚠️ SIGTERM受信: 状態を保存して終了します...');
+  saveState();
+  setTimeout(() => process.exit(0), 3000);
+});
+process.on('SIGINT', () => {
+  saveState();
+  setTimeout(() => process.exit(0), 1000);
+});
+
 loadState().then(() => {
   setTimeout(() => agentThink(employees[0]), 2000);
-  // 起動時に経営会議を開き、社員不足を即座に補う
-  setTimeout(() => agentStrategicMeeting(), 5000);
-  setTimeout(() => agentStrategicMeeting(), 3 * 60 * 1000);  // 3分後にもう一度
 });
 
 const PORT = process.env.PORT || 3000;
