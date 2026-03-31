@@ -313,7 +313,8 @@ function makeEmployee(id, name, role, room, color, skinColor, x, y) {
     color, skinColor, x, y, targetX:x, targetY:y,
     busy:false, overtimeHours:0,
     monthlyOvertimeLimit:Math.floor(Math.random()*80+20),
-    hadPresidentMeeting:false, isHome:false, dancing:false };
+    hadPresidentMeeting:false, isHome:false, dancing:false,
+    stayLateToday: Math.random() < 0.5 };
 }
 
 let employees = [
@@ -619,6 +620,9 @@ async function agentThink(emp) {
     if (emp.overtimeHours >= emp.monthlyOvertimeLimit) {
       emp.isHome = true; emp.thought = '残業上限のため帰宅します。'; return;
     }
+    if (!emp.stayLateToday) {
+      emp.isHome = true; emp.thought = '今日は定時で上がります！'; return;
+    }
   }
   emp.busy = true; emp.state = 'thinking';
   const myProject = projects.find(p => p.status==='active' && p.assignees.includes(emp.id));
@@ -764,9 +768,24 @@ app.get('/api/save', async (req, res) => {
   }
 });
 
+// ===== 日次リセット =====
+let lastDailyResetDay = -1;
+
 // ===== シミュレーションループ =====
 setInterval(() => {
-  if (getJSTHour() >= 9) employees.forEach(e => { e.isHome = false; });
+  const jst = getJST();
+  const hour = jst.getUTCHours();
+  const day = jst.getUTCDate();
+  // 毎朝9時に出社＆残業するかどうかをランダムに決める
+  if (hour >= 9) {
+    employees.forEach(e => { e.isHome = false; });
+    if (day !== lastDailyResetDay) {
+      lastDailyResetDay = day;
+      employees.forEach(e => {
+        e.stayLateToday = Math.random() < 0.5; // 50%の確率で残業
+      });
+    }
+  }
   if ((isWorkingHours() || isOvertimeHours()) && !celebration) {
     const available = employees.filter(e=>!e.busy&&!e.isHome&&!e.dancing);
     if (available.length>0) agentThink(available[Math.floor(Math.random()*available.length)]);
