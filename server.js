@@ -118,8 +118,8 @@ let meetingMinutes = [];
 function makeEmployee(id, name, role, room, color, skinColor, x, y) {
   return { id, name, role, room, state:'idle', thought:'業務中です。',
     color, skinColor, x, y, targetX:x, targetY:y,
-    busy:false, overtimeHours:Math.floor(Math.random()*40+20),
-    monthlyOvertimeLimit:Math.floor(Math.random()*60+40),
+    busy:false, overtimeHours:0,
+    monthlyOvertimeLimit:Math.floor(Math.random()*80+20),
     hadPresidentMeeting:false, isHome:false, dancing:false };
 }
 
@@ -278,7 +278,6 @@ async function agentThink(emp) {
     if (emp.overtimeHours >= emp.monthlyOvertimeLimit) {
       emp.isHome = true; emp.thought = '残業上限のため帰宅します。'; return;
     }
-    emp.overtimeHours += 0.5;
   }
   emp.busy = true; emp.state = 'thinking';
   const myProject = projects.find(p => p.status==='active' && p.assignees.includes(emp.id));
@@ -294,7 +293,6 @@ async function agentThink(emp) {
     });
     emp.thought = res.content[0].text.trim().replace(/[「」]/g, '');
     emp.state = 'working';
-    if (working) emp.overtimeHours += Math.random() * 1.5;
     if (myProject) {
       myProject.progress = Math.min(100, myProject.progress + Math.floor(Math.random()*10+3));
       if (myProject.progress >= 100) completePhase(myProject);
@@ -323,7 +321,7 @@ function checkGrowth() {
         state:'idle', thought:`${m.role}として入社しました！よろしくお願いします。`,
         color:m.color, skinColor:m.skinColor,
         x:pos.x, y:pos.y, targetX:pos.x, targetY:pos.y,
-        busy:false, overtimeHours:Math.floor(Math.random()*40+20),
+        busy:false, overtimeHours:0,
         monthlyOvertimeLimit:Math.floor(Math.random()*80+20),
         hadPresidentMeeting:false, isHome:false, dancing:false,
       });
@@ -443,12 +441,23 @@ setInterval(() => {
 
 setInterval(() => { if (Math.random()<0.20) triggerMeeting(); }, 3*60*1000);
 
+// 実際の残業時間を1分ごとに加算（18:00〜22:00 JSTのみ）
+setInterval(() => {
+  if (isOvertimeHours()) {
+    employees.forEach(emp => {
+      if (!emp.isHome && !emp.dancing) {
+        emp.overtimeHours += 1 / 60; // 1分 = 1/60時間
+      }
+    });
+  }
+}, 60 * 1000);
+
 setInterval(() => {
   checkOvertimeAndMeeting();
   const m = getJST().getUTCMonth();
   if (m !== company.currentMonth) {
     company.currentMonth = m;
-    employees.forEach(e => { e.overtimeHours=Math.floor(Math.random()*30+10); e.hadPresidentMeeting=false; e.monthlyOvertimeLimit=Math.floor(Math.random()*80+20); });
+    employees.forEach(e => { e.overtimeHours=0; e.hadPresidentMeeting=false; e.monthlyOvertimeLimit=Math.floor(Math.random()*80+20); });
     addLog('📅 月次リセット: 残業時間をリセットしました');
   }
 }, 60*1000);
