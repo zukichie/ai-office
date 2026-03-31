@@ -102,8 +102,8 @@ async function loadState() {
   else loadStateLocal();
 }
 
-// 60秒ごとに保存
-setInterval(saveState, 60 * 1000);
+// 30秒ごとに保存
+setInterval(saveState, 30 * 1000);
 
 // ===== 日本時間 =====
 function getJST() { return new Date(Date.now() + 9 * 60 * 60 * 1000); }
@@ -165,6 +165,7 @@ function completePhase(project) {
     company.completedProjects++;
     addLog(`✅ ${project.name} 竣工完了 +¥${project.value.toLocaleString()}`);
     checkGrowth();
+    saveState();
   }
 }
 
@@ -250,7 +251,7 @@ app.post('/api/coffee', async (req, res) => {
   company.coffeeCount += Number(coffees);
   addLog(`☕ ${supporterName}さんがコーヒーを${coffees}杯おごってくれました！ありがとうございます！`);
 
-  await triggerCelebration(supporterName, Number(coffees));
+  triggerCelebration(supporterName, Number(coffees)).catch(e => console.error('Celebration error:', e));
 });
 
 // テスト用エンドポイント（本番でも使えます）
@@ -260,7 +261,7 @@ app.post('/api/coffee/test', async (req, res) => {
   res.json({ ok: true, message: `${name}のコーヒーイベント発火` });
   company.coffeeCount += coffees;
   addLog(`☕ ${name}さんがコーヒーを${coffees}杯おごってくれました！`);
-  await triggerCelebration(name, coffees);
+  triggerCelebration(name, coffees).catch(e => console.error('Celebration error:', e));
 });
 
 async function triggerCelebration(supporterName, coffees) {
@@ -393,6 +394,7 @@ function checkGrowth() {
         hadPresidentMeeting:false, isHome:false, dancing:false,
       });
       addLog(`🎉 ${m.name}さん（${m.role}）が入社しました！`);
+      saveState();
     }
   }
 }
