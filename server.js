@@ -9,6 +9,7 @@ const app = express();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ===== 状態の保存・読み込み (JSONBin.io または ローカルファイル) =====
 const JSONBIN_KEY = process.env.JSONBIN_API_KEY;
@@ -225,22 +226,31 @@ app.post('/api/coffee', async (req, res) => {
   res.sendStatus(200);
 
   const body = req.body;
-  webhookLog.unshift({ time: new Date().toISOString(), body });
+  const headers = req.headers;
+  webhookLog.unshift({ time: new Date().toISOString(), headers: { 'content-type': headers['content-type'], 'user-agent': headers['user-agent'] }, body });
   if (webhookLog.length > 20) webhookLog.pop();
-  console.log('☕ BMC Webhook受信:', JSON.stringify(body, null, 2));
+  console.log('☕ BMC Webhook受信 headers:', JSON.stringify({ 'content-type': headers['content-type'] }));
+  console.log('☕ BMC Webhook受信 body:', JSON.stringify(body, null, 2));
 
-  // BMCの実際のフォーマット: donation.created
+  // BMCの様々なフォーマットに対応
   const supporterName =
     body?.data?.supporter_name ||
+    body?.supporter_name ||
+    body?.data?.payer_name ||
     body?.data?.supporter_email?.split('@')[0] ||
+    body?.data?.email?.split('@')[0] ||
     '匿名さん';
-  const coffees = body?.data?.coffee_count || 1;
+  const coffees =
+    body?.data?.coffee_count ||
+    body?.coffee_count ||
+    body?.data?.amount ||
+    1;
 
   console.log(`☕ コーヒーが届きました！ from ${supporterName} x${coffees}`);
-  company.coffeeCount += coffees;
+  company.coffeeCount += Number(coffees);
   addLog(`☕ ${supporterName}さんがコーヒーを${coffees}杯おごってくれました！ありがとうございます！`);
 
-  await triggerCelebration(supporterName, coffees);
+  await triggerCelebration(supporterName, Number(coffees));
 });
 
 // テスト用エンドポイント（本番でも使えます）
